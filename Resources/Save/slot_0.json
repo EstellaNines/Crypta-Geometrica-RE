@@ -1,0 +1,32 @@
+﻿{
+    "header": {
+        "version": "1.0.0",
+        "timestamp": "2026-01-15T01:09:05.2639257+08:00",
+        "playTime": 0.72783362865448,
+        "sceneName": "2_Save",
+        "slotIndex": 0
+    },
+    "globalData": {
+        "difficulty": 1,
+        "currentLevel": 0,
+        "currentHearts": 3,
+        "playerGold": 0,
+        "totalKills": 0,
+        "totalDeaths": 0,
+        "tutorialCompleted": false
+    },
+    "pcgData": {
+        "masterSeed": 0,
+        "levelSeeds": [],
+        "metadata": {
+            "keys": [],
+            "values": []
+        },
+        "currentLevelIndex": 0
+    },
+    "entityData": {
+        "keys": [],
+        "values": []
+    },
+    "dynamicObjects": []
+}

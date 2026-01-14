@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8ac0a4ad712b5bc47bf913a657a9ab20, type: 3}
+  m_Name: MatrixRainConfig
+  m_EditorClassIdentifier: 
+  characterSet: 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ@#$%&*
+  fontSize: 20
+  font: {fileID: 11400000, guid: fe79b5da88c8cee4898dbfc395ddf932, type: 2}
+  headColor: {r: 0.5641509, g: 1, b: 0.5641509, a: 1}
+  bodyColor: {r: 0, g: 0.8, b: 0.2, a: 1}
+  tailColor: {r: 0, g: 0.3, b: 0, a: 0.34509805}
+  minSpeed: 40
+  maxSpeed: 120
+  characterChangeInterval: 0.05
+  columnCount: 110
+  minTrailLength: 8
+  maxTrailLength: 25
+  columnSpacing: 18
+  spawnInterval: 0.03
+  globalAlpha: 1
+  flickerIntensity: 0.5
