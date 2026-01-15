@@ -23,7 +23,11 @@ public class LoadingPanel : MonoBehaviour
     [SerializeField] private float characterY = -200f; // 小人Y坐标（固定高度）
 
     [Header("平滑移动")]
+    [SerializeField] private bool useSmoothMove = true;  // 是否使用平滑移动
     [SerializeField] private float moveSmoothSpeed = 5f; // 移动平滑速度
+
+    private float currentPosX;  // 当前X坐标（用于平滑插值）
+    private float targetPosX;   // 目标X坐标
 
     [Header("显示设置")]
     [SerializeField] private string[] loadingTips = new string[]
@@ -64,6 +68,8 @@ public class LoadingPanel : MonoBehaviour
     private void InitializeUI()
     {
         // 设置小人初始位置（屏幕左侧）
+        currentPosX = startPosX;
+        targetPosX = startPosX;
         if (characterContainer != null)
         {
             characterContainer.anchoredPosition = new Vector2(startPosX, characterY);
@@ -124,15 +130,25 @@ public class LoadingPanel : MonoBehaviour
     private void UpdateCharacterPosition(float progress)
     {
         // 计算目标X坐标
-        float targetPosX = Mathf.Lerp(startPosX, endPosX, progress);
+        targetPosX = Mathf.Lerp(startPosX, endPosX, progress);
 
         // 移动小人
         if (characterContainer != null)
         {
-            characterContainer.anchoredPosition = new Vector2(targetPosX, characterY);
+            if (useSmoothMove)
+            {
+                // 平滑移动
+                currentPosX = Mathf.Lerp(currentPosX, targetPosX, Time.deltaTime * moveSmoothSpeed);
+                characterContainer.anchoredPosition = new Vector2(currentPosX, characterY);
+            }
+            else
+            {
+                // 直接移动
+                characterContainer.anchoredPosition = new Vector2(targetPosX, characterY);
+            }
         }
 
-        // 更新进度文本（固定在右下角）
+        // 更新进度文本
         if (progressText != null)
         {
             progressText.text = $"{Mathf.RoundToInt(progress * 100)}%";

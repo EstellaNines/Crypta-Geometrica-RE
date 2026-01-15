@@ -1,14 +1,14 @@
 ﻿{
     "header": {
         "version": "1.0.0",
-        "timestamp": "2026-01-15T01:09:05.2639257+08:00",
-        "playTime": 0.72783362865448,
-        "sceneName": "2_Save",
+        "timestamp": "2026-01-15T17:07:38.9314070+08:00",
+        "playTime": 19.007888793945314,
+        "sceneName": "4_Training",
         "slotIndex": 0
     },
     "globalData": {
         "difficulty": 1,
-        "currentLevel": 0,
+        "currentLevel": 1,
         "currentHearts": 3,
         "playerGold": 0,
         "totalKills": 0,

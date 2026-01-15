@@ -38,6 +38,7 @@ MonoBehaviour:
     - AdvancedSceneManager
     - Assembly-CSharp
     - Assembly-CSharp-firstpass
+    - Cinemachine
     - SingularityGroup.HotReload.Runtime
     - SingularityGroup.HotReload.Runtime.Public
     - VInspector

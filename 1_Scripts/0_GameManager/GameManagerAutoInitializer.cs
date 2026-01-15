@@ -54,6 +54,10 @@ public static class GameManagerAutoInitializer
         saveMgr.transform.SetParent(gmRoot.transform);
         saveMgr.AddComponent<SaveManager>();
 
+        GameObject teleportMgr = new GameObject("[TeleportManager]");
+        teleportMgr.transform.SetParent(gmRoot.transform);
+        teleportMgr.AddComponent<TeleportManager>();
+
         // 3. 最后添加 GameManager 组件（此时子模块已存在，可以正确收集）
         gmRoot.AddComponent<GameManager>();
 
@@ -61,5 +65,6 @@ public static class GameManagerAutoInitializer
         Debug.Log("  - [GameManager]");
         Debug.Log("    - [AsyncSceneManager]");
         Debug.Log("    - [SaveManager]");
+        Debug.Log("    - [TeleportManager]");
     }
 }

@@ -273,6 +273,16 @@ public static class SaveUtility
             {
                 File.Delete(path);
                 Debug.Log($"[SaveUtility] 删除存档: {path}");
+
+#if UNITY_EDITOR
+                // 在 Editor 中需要刷新 AssetDatabase
+                string metaPath = path + ".meta";
+                if (File.Exists(metaPath))
+                {
+                    File.Delete(metaPath);
+                }
+                UnityEditor.AssetDatabase.Refresh();
+#endif
                 return true;
             }
             catch (Exception e)

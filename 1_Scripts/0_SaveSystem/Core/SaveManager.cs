@@ -40,6 +40,9 @@ public class SaveManager : MonoBehaviour, IGameModule
     [SerializeField, Tooltip("最大存档槽位数 (不含测试槽)")]
     private int maxSlots = 3;
 
+    /// <summary>最大存档槽位数</summary>
+    public int MaxSlots => maxSlots;
+
     [SerializeField, Tooltip("当前使用的存档槽位")]
     private int currentSlotIndex = 0;
 
@@ -386,11 +389,16 @@ public class SaveManager : MonoBehaviour, IGameModule
         string jsonPath = SaveUtility.GetSavePath(slotIndex, false);
         string cryptaPath = SaveUtility.GetSavePath(slotIndex, true);
 
-        bool deleted = false;
-        deleted |= SaveUtility.DeleteSave(jsonPath);
-        deleted |= SaveUtility.DeleteSave(cryptaPath);
+        Debug.Log($"[SaveManager] 尝试删除槽位 {slotIndex} 存档");
+        Debug.Log($"[SaveManager] JSON 路径: {jsonPath}");
+        Debug.Log($"[SaveManager] Crypta 路径: {cryptaPath}");
 
-        return deleted;
+        bool deletedJson = SaveUtility.DeleteSave(jsonPath);
+        bool deletedCrypta = SaveUtility.DeleteSave(cryptaPath);
+
+        Debug.Log($"[SaveManager] 删除结果 - JSON: {deletedJson}, Crypta: {deletedCrypta}");
+
+        return deletedJson || deletedCrypta;
     }
 
     /// <summary>
