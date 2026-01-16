@@ -1,91 +1,257 @@
 using UnityEngine;
 using UnityEngine.Tilemaps;
 using System.Collections.Generic;
+using Sirenix.OdinInspector;
 
 namespace CryptaGeometrica.LevelGeneration.Graybox
 {
+    /// <summary>
+    /// 门户锚点数据 - 记录门的精确位置和朝向
+    /// 用于确保走廊端点与门瓦片精确对齐
+    /// </summary>
+    [System.Serializable]
+    public struct PortalAnchor
+    {
+        /// <summary>
+        /// 锚点：门瓦片中心的精确世界坐标
+        /// </summary>
+        public Vector2 AnchorPoint;
+        
+        /// <summary>
+        /// 水平接入点：从锚点向外延伸后的水平走廊段末端
+        /// 用于确保所有走廊都从水平段开始
+        /// </summary>
+        public Vector2 HorizontalStubEnd;
+        
+        /// <summary>
+        /// 引导点：水平接入段末端向外延伸的安全寻路起点
+        /// </summary>
+        public Vector2 ApproachPoint;
+        
+        /// <summary>
+        /// 门的朝向
+        /// </summary>
+        public Direction Direction;
+        
+        /// <summary>
+        /// 是入口还是出口
+        /// </summary>
+        public bool IsEntrance;
+        
+        /// <summary>
+        /// 获取朝向的单位向量
+        /// </summary>
+        public Vector2 DirectionVector
+        {
+            get
+            {
+                switch (Direction)
+                {
+                    case Direction.North: return Vector2.up;
+                    case Direction.South: return Vector2.down;
+                    case Direction.East: return Vector2.right;
+                    case Direction.West: return Vector2.left;
+                    default: return Vector2.up;
+                }
+            }
+        }
+    }
+    
     /// <summary>
     /// 多网格关卡管理器
     /// 在场景中生成多个独立的4x4网格关卡区域
     /// </summary>
     public class MultiGridLevelManager : MonoBehaviour
     {
-        [Header("生成器引用")]
-        [Tooltip("灰盒关卡生成器组件")]
+        [TitleGroup("生成器引用")]
+        [LabelText("灰盒关卡生成器")]
+        [Required("必须指定灰盒关卡生成器组件")]
         public GrayboxLevelGenerator LevelGenerator;
         
-        [Header("多网格布局")]
-        [Tooltip("网格总数量")]
+        [TitleGroup("多网格布局")]
+        [LabelText("网格总数量")]
         [Range(1, 8)]
         public int GridCount = 4;
         
-        [Tooltip("布局区域宽度（瓦片数）")]
+        [TitleGroup("多网格布局")]
+        [LabelText("布局区域宽度")]
+        [SuffixLabel("瓦片", true)]
         [Range(100, 500)]
         public int LayoutAreaWidth = 200;
         
-        [Tooltip("布局区域高度（瓦片数）")]
+        [TitleGroup("多网格布局")]
+        [LabelText("布局区域高度")]
+        [SuffixLabel("瓦片", true)]
         [Range(100, 500)]
         public int LayoutAreaHeight = 200;
         
-        [Tooltip("网格之间的最小间距（瓦片数）")]
+        [TitleGroup("多网格布局")]
+        [LabelText("网格最小间距")]
+        [SuffixLabel("瓦片", true)]
         [Range(8, 64)]
         public int MinGridSpacing = 16;
         
-        [Tooltip("位置随机偏移范围（瓦片数）")]
+        [TitleGroup("多网格布局")]
+        [LabelText("位置随机偏移")]
+        [SuffixLabel("瓦片", true)]
         [Range(0, 32)]
         public int PositionRandomOffset = 16;
         
-        [Header("随机性控制")]
-        [Tooltip("基础随机种子 (0=完全随机)")]
+        [TitleGroup("随机性控制")]
+        [LabelText("基础随机种子")]
+        [InfoBox("设为0时使用完全随机种子")]
         public int BaseSeed = 0;
         
-        [Tooltip("每个网格使用独立的随机种子")]
+        [TitleGroup("随机性控制")]
+        [LabelText("每网格独立种子")]
         public bool UseUniqueSeedPerGrid = true;
         
-        [Tooltip("位置生成最大尝试次数")]
+        [TitleGroup("随机性控制")]
+        [LabelText("位置尝试次数")]
         [Range(50, 500)]
         public int MaxPlacementAttempts = 100;
         
-        [Header("特殊区域设置")]
-        [Tooltip("中位数网格特殊区域生成概率")]
-        [Range(0f, 1f)]
+        [TitleGroup("特殊区域设置")]
+        [LabelText("中位数网格概率")]
+        [ProgressBar(0, 1, ColorGetter = "GetSpecialChanceColor")]
         public float MedianGridSpecialChance = 0.8f;
         
-        [Tooltip("其他网格特殊区域生成概率")]
-        [Range(0f, 1f)]
+        [TitleGroup("特殊区域设置")]
+        [LabelText("其他网格概率")]
+        [ProgressBar(0, 1, ColorGetter = "GetSpecialChanceColor")]
         public float OtherGridSpecialChance = 0.15f;
         
-        [Header("调试显示")]
-        [Tooltip("在Scene视图中显示网格边界")]
+        [TitleGroup("调试显示")]
+        [LabelText("显示网格边界")]
         public bool ShowGridBounds = true;
         
-        [Tooltip("网格边界颜色")]
+        [TitleGroup("调试显示")]
+        [LabelText("网格边界颜色")]
+        [ShowIf("ShowGridBounds")]
         public Color GridBoundsColor = new Color(0f, 1f, 0f, 0.5f);
         
-        [Header("出入口标记显示")]
-        [Tooltip("显示出入口标记")]
+        [TitleGroup("出入口标记")]
+        [LabelText("显示出入口标记")]
         public bool ShowEntranceExitMarkers = true;
         
-        [Tooltip("入口标记颜色")]
+        [TitleGroup("出入口标记")]
+        [LabelText("入口标记颜色")]
+        [ShowIf("ShowEntranceExitMarkers")]
         public Color EntranceMarkerColor = new Color(0f, 1f, 0f, 1f);
         
-        [Tooltip("出口标记颜色")]
+        [TitleGroup("出入口标记")]
+        [LabelText("出口标记颜色")]
+        [ShowIf("ShowEntranceExitMarkers")]
         public Color ExitMarkerColor = new Color(0f, 0f, 0f, 1f);
         
-        [Tooltip("标记大小")]
+        [TitleGroup("出入口标记")]
+        [LabelText("标记大小")]
+        [ShowIf("ShowEntranceExitMarkers")]
         [Range(1f, 10f)]
         public float MarkerSize = 4f;
+        
+        [TitleGroup("走廊设置")]
+        [LabelText("显示走廊路径")]
+        public bool ShowCorridorPaths = true;
+        
+        [TitleGroup("走廊设置")]
+        [LabelText("走廊路径颜色")]
+        [ShowIf("ShowCorridorPaths")]
+        public Color CorridorPathColor = new Color(1f, 0.5f, 0f, 1f);
+        
+        [TitleGroup("走廊设置")]
+        [LabelText("走廊线宽")]
+        [ShowIf("ShowCorridorPaths")]
+        [Range(1f, 5f)]
+        public float CorridorLineWidth = 2f;
+        
+        [TitleGroup("走廊设置")]
+        [LabelText("寻路网格分辨率")]
+        [SuffixLabel("瓦片", true)]
+        [Range(2, 16)]
+        public int PathfindingResolution = 4;
+        
+        [TitleGroup("走廊设置")]
+        [LabelText("障碍物安全边距")]
+        [SuffixLabel("瓦片", true)]
+        [Range(0, 32)]
+        public float ObstacleMargin = 8f;
+        
+        [TitleGroup("走廊设置")]
+        [LabelText("样条曲线段数")]
+        [Range(10, 50)]
+        public int SplineSegments = 30;
+        
+        // ==================== 生成控制 ====================
+        
+        [TitleGroup("生成控制", Order = 100)]
+        [Button("生成多网格关卡", ButtonSizes.Large), GUIColor(0.4f, 0.8f, 0.4f)]
+        public void GenerateButton()
+        {
+            GenerateMultiGridLevel();
+        }
+        
+        [TitleGroup("生成控制")]
+        [Button("清除所有网格", ButtonSizes.Medium), GUIColor(0.8f, 0.4f, 0.4f)]
+        public void ClearButton()
+        {
+            ClearAllGrids();
+        }
+        
+        // ==================== 预览信息 ====================
+        
+        [TitleGroup("预览信息", Order = 101)]
+        [ShowInInspector, LabelText("单网格宽度"), ReadOnly, SuffixLabel("瓦片", true)]
+        private int PreviewSingleGridWidth => LevelGenerator != null ? LevelShape.GridWidth * LevelGenerator.RoomWidth : 0;
+        
+        [TitleGroup("预览信息")]
+        [ShowInInspector, LabelText("单网格高度"), ReadOnly, SuffixLabel("瓦片", true)]
+        private int PreviewSingleGridHeight => LevelGenerator != null ? LevelShape.GridHeight * LevelGenerator.RoomHeight : 0;
+        
+        [TitleGroup("预览信息")]
+        [ShowInInspector, LabelText("已生成网格数"), ReadOnly]
+        private int PreviewGeneratedGridCount => _gridPositions?.Count ?? 0;
+        
+        [TitleGroup("预览信息")]
+        [ShowInInspector, LabelText("入口数量"), ReadOnly]
+        private int PreviewEntranceCount => _entrancePositions?.Count ?? 0;
+        
+        [TitleGroup("预览信息")]
+        [ShowInInspector, LabelText("出口数量"), ReadOnly]
+        private int PreviewExitCount => _exitPositions?.Count ?? 0;
+        
+        [TitleGroup("预览信息")]
+        [ShowInInspector, LabelText("网格位置列表"), ReadOnly]
+        [ListDrawerSettings(IsReadOnly = true, ShowFoldout = true)]
+        private List<Vector2Int> PreviewGridPositions => _gridPositions ?? new List<Vector2Int>();
+        
+        // ==================== 辅助方法 ====================
+        
+        /// <summary>
+        /// 获取特殊区域概率条颜色
+        /// </summary>
+        private Color GetSpecialChanceColor(float value)
+        {
+            return Color.Lerp(new Color(0.8f, 0.2f, 0.2f), new Color(0.2f, 0.8f, 0.2f), value);
+        }
         
         // 内部状态
         private System.Random _rng;
         private List<Rect> _placedGridBounds = new List<Rect>();
         private List<Vector2Int> _gridPositions = new List<Vector2Int>();
         
-        // 存储每个网格的入口和出口位置及方向
+        // 存储每个网格的入口和出口锚点数据
+        private List<PortalAnchor> _entranceAnchors = new List<PortalAnchor>();
+        private List<PortalAnchor> _exitAnchors = new List<PortalAnchor>();
+        
+        // 兼容性：保留原有位置列表用于预览显示
         private List<Vector3> _entrancePositions = new List<Vector3>();
         private List<Vector3> _exitPositions = new List<Vector3>();
         private List<Direction> _entranceDirections = new List<Direction>();
         private List<Direction> _exitDirections = new List<Direction>();
+        
+        // 存储走廊路径（每条走廊连接相邻网格）
+        private List<List<Vector2>> _corridorPaths = new List<List<Vector2>>();
         
         // 计算属性
         private int SingleGridWidth => LevelShape.GridWidth * LevelGenerator.RoomWidth;
@@ -94,7 +260,6 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
         /// <summary>
         /// 生成多网格关卡
         /// </summary>
-        [ContextMenu("生成多网格关卡")]
         public void GenerateMultiGridLevel()
         {
             if (!ValidateSetup()) return;
@@ -103,6 +268,8 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
             _rng = BaseSeed == 0 ? new System.Random() : new System.Random(BaseSeed);
             _placedGridBounds.Clear();
             _gridPositions.Clear();
+            _entranceAnchors.Clear();
+            _exitAnchors.Clear();
             _entrancePositions.Clear();
             _exitPositions.Clear();
             _entranceDirections.Clear();
@@ -141,11 +308,298 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
                 Debug.Log($"  网格[{i}] 生成完成 (位置: {pos.x},{pos.y}, 种子: {gridSeed}{specialInfo})");
             }
             
-            Debug.Log($"多网格关卡生成完成! 共{_gridPositions.Count}个独立网格");
+            // 生成走廊路径
+            GenerateCorridorPaths();
+            
+            Debug.Log($"多网格关卡生成完成! 共{_gridPositions.Count}个独立网格, {_corridorPaths.Count}条走廊");
         }
         
         /// <summary>
-        /// 生成随机位置（确保不重叠）
+        /// 生成走廊路径（连接相邻网格的出入口）
+        /// 实现双层走廊避免重叠：水平走廊使用双层，垂直走廊使用单层
+        /// </summary>
+        private void GenerateCorridorPaths()
+        {
+            _corridorPaths.Clear();
+            
+            if (_exitAnchors.Count < 2 || _entranceAnchors.Count < 2)
+            {
+                Debug.Log("网格数量不足，无法生成走廊");
+                return;
+            }
+            
+            // 创建布局边界
+            Rect layoutBounds = new Rect(0, 0, LayoutAreaWidth, LayoutAreaHeight);
+            
+            // 创建寻路器
+            CorridorPathfinder pathfinder = new CorridorPathfinder(
+                _placedGridBounds,
+                layoutBounds,
+                PathfindingResolution,
+                ObstacleMargin,
+                BaseSeed
+            );
+            
+            // 收集已生成的走廊段，用于检测重叠
+            List<Rect> existingCorridorBounds = new List<Rect>();
+            
+            // 按照网格序号顺序连接：网格0的出口 -> 网格1的入口 -> 网格1的出口 -> 网格2的入口 ...
+            for (int i = 0; i < _gridPositions.Count - 1; i++)
+            {
+                // 使用锚点数据
+                PortalAnchor exitAnchor = _exitAnchors[i];
+                PortalAnchor entranceAnchor = _entranceAnchors[i + 1];
+                
+                // 根据目标房间位置调整水平接入段方向
+                Vector2 exitStubEnd = AdjustHorizontalStub(exitAnchor, entranceAnchor.AnchorPoint);
+                Vector2 entranceStubEnd = AdjustHorizontalStub(entranceAnchor, exitAnchor.AnchorPoint);
+                
+                // 生成中间的 A* 路径（水平接入段末端到水平接入段末端）
+                List<Vector2> middlePath = pathfinder.FindPath(exitStubEnd, entranceStubEnd);
+                
+                // 拼接完整路径（带距离检测防止重复点）
+                List<Vector2> corridorPath = new List<Vector2>();
+                float minDistance = 0.05f;  // 更严格的最小点间距
+                
+                // 段落 A：出口锚点 -> 水平接入段末端
+                corridorPath.Add(exitAnchor.AnchorPoint);
+                
+                // 添加水平接入段中间点（如果是 North/South 方向需要拐点）
+                if (exitAnchor.Direction == Direction.North || exitAnchor.Direction == Direction.South)
+                {
+                    // 垂直门：先垂直延伸，再水平
+                    Vector2 verticalPoint = exitAnchor.HorizontalStubEnd;
+                    // 调整水平方向指向目标
+                    float horizontalDir = (entranceAnchor.AnchorPoint.x > exitAnchor.AnchorPoint.x) ? 1f : -1f;
+                    Vector2 horizontalEnd = new Vector2(verticalPoint.x + horizontalDir * 3f, verticalPoint.y);
+                    
+                    AddPointIfFarEnough(corridorPath, verticalPoint, minDistance);
+                    AddPointIfFarEnough(corridorPath, horizontalEnd, minDistance);
+                }
+                else
+                {
+                    // 水平门（East/West）：直接水平延伸
+                    AddPointIfFarEnough(corridorPath, exitStubEnd, minDistance);
+                }
+                
+                // 段落 B：A* 路径
+                if (middlePath.Count > 0)
+                {
+                    foreach (var p in middlePath)
+                    {
+                        AddPointIfFarEnough(corridorPath, p, minDistance);
+                    }
+                }
+                
+                // 段落 C：入口水平接入段 -> 入口锚点
+                if (entranceAnchor.Direction == Direction.North || entranceAnchor.Direction == Direction.South)
+                {
+                    // 垂直门：先水平，再垂直
+                    float horizontalDir = (exitAnchor.AnchorPoint.x > entranceAnchor.AnchorPoint.x) ? 1f : -1f;
+                    Vector2 horizontalEnd = new Vector2(entranceAnchor.HorizontalStubEnd.x + horizontalDir * 3f, entranceAnchor.HorizontalStubEnd.y);
+                    
+                    AddPointIfFarEnough(corridorPath, horizontalEnd, minDistance);
+                    AddPointIfFarEnough(corridorPath, entranceAnchor.HorizontalStubEnd, minDistance);
+                }
+                else
+                {
+                    // 水平门：直接连接
+                    AddPointIfFarEnough(corridorPath, entranceStubEnd, minDistance);
+                }
+                
+                AddPointIfFarEnough(corridorPath, entranceAnchor.AnchorPoint, minDistance);
+                
+                // 【路径清洗】合并共线点
+                corridorPath = CleanCorridorPath(corridorPath);
+                
+                if (corridorPath.Count >= 2)
+                {
+                    // 记录走廊边界用于后续重叠检测
+                    Rect corridorBound = CalculatePathBounds(corridorPath);
+                    existingCorridorBounds.Add(corridorBound);
+                    
+                    _corridorPaths.Add(corridorPath);
+                    Debug.Log($"  走廊[{i}]: 网格{i}出口 -> 网格{i + 1}入口, 路径点数: {corridorPath.Count}");
+                }
+                else
+                {
+                    Debug.LogWarning($"  走廊[{i}]: 无法生成有效路径");
+                }
+            }
+        }
+        
+        /// <summary>
+        /// 根据目标位置调整水平接入段的方向
+        /// </summary>
+        private Vector2 AdjustHorizontalStub(PortalAnchor anchor, Vector2 targetPos)
+        {
+            float stubLength = 3f;
+            
+            switch (anchor.Direction)
+            {
+                case Direction.North:
+                case Direction.South:
+                    // 垂直门：水平方向指向目标
+                    float horizontalDir = (targetPos.x > anchor.AnchorPoint.x) ? 1f : -1f;
+                    return new Vector2(anchor.HorizontalStubEnd.x + horizontalDir * stubLength, anchor.HorizontalStubEnd.y);
+                    
+                case Direction.East:
+                    // 东向门：向右延伸
+                    return anchor.ApproachPoint;
+                    
+                case Direction.West:
+                    // 西向门：向左延伸
+                    return anchor.ApproachPoint;
+                    
+                default:
+                    return anchor.ApproachPoint;
+            }
+        }
+        
+        /// <summary>
+        /// 仅当距离足够远时添加点（避免重复点）
+        /// </summary>
+        private void AddPointIfFarEnough(List<Vector2> path, Vector2 point, float minDistance)
+        {
+            if (path.Count == 0 || Vector2.Distance(path[path.Count - 1], point) >= minDistance)
+            {
+                path.Add(point);
+            }
+        }
+        
+        /// <summary>
+        /// 计算走廊层级偏移（避免与已有走廊重叠）
+        /// </summary>
+        private float CalculateCorridorLayerOffset(Vector2 start, Vector2 end, List<Rect> existingBounds, bool isMainlyHorizontal)
+        {
+            // 计算当前走廊的预估边界
+            Rect currentBound = new Rect(
+                Mathf.Min(start.x, end.x) - 5f,
+                Mathf.Min(start.y, end.y) - 5f,
+                Mathf.Abs(end.x - start.x) + 10f,
+                Mathf.Abs(end.y - start.y) + 10f
+            );
+            
+            // 检查与已有走廊的重叠
+            int overlapCount = 0;
+            foreach (Rect existing in existingBounds)
+            {
+                if (currentBound.Overlaps(existing))
+                {
+                    overlapCount++;
+                }
+            }
+            
+            // 根据重叠数量和走廊方向计算偏移
+            if (overlapCount == 0)
+                return 0f;
+            
+            // 水平走廊使用双层（上下偏移），垂直走廊使用单层（左右偏移）
+            float baseOffset = 8f; // 基础偏移量
+            if (isMainlyHorizontal)
+            {
+                // 水平走廊：交替上下偏移
+                return (overlapCount % 2 == 0) ? baseOffset : -baseOffset;
+            }
+            else
+            {
+                // 垂直走廊：交替左右偏移
+                return (overlapCount % 2 == 0) ? baseOffset : -baseOffset;
+            }
+        }
+        
+        /// <summary>
+        /// 应用层级偏移到位置
+        /// </summary>
+        private Vector2 ApplyLayerOffset(Vector2 pos, Direction dir, float offset, bool isMainlyHorizontal)
+        {
+            if (Mathf.Approximately(offset, 0f))
+                return pos;
+            
+            // 根据走廊主方向应用偏移
+            if (isMainlyHorizontal)
+            {
+                // 水平走廊：在Y轴方向偏移
+                return new Vector2(pos.x, pos.y + offset);
+            }
+            else
+            {
+                // 垂直走廊：在X轴方向偏移
+                return new Vector2(pos.x + offset, pos.y);
+            }
+        }
+        
+        /// <summary>
+        /// 清洗走廊路径：合并共线点，去除冗余
+        /// </summary>
+        private List<Vector2> CleanCorridorPath(List<Vector2> path)
+        {
+            if (path.Count <= 2)
+                return path;
+            
+            float tolerance = 0.5f;
+            List<Vector2> cleaned = new List<Vector2>();
+            cleaned.Add(path[0]);
+            
+            for (int i = 1; i < path.Count - 1; i++)
+            {
+                Vector2 prev = cleaned[cleaned.Count - 1];
+                Vector2 curr = path[i];
+                Vector2 next = path[i + 1];
+                
+                // 检查三点是否共线（水平或垂直）
+                bool prevCurrHorizontal = Mathf.Abs(prev.y - curr.y) < tolerance;
+                bool currNextHorizontal = Mathf.Abs(curr.y - next.y) < tolerance;
+                bool prevCurrVertical = Mathf.Abs(prev.x - curr.x) < tolerance;
+                bool currNextVertical = Mathf.Abs(curr.x - next.x) < tolerance;
+                
+                bool isCollinearHorizontal = prevCurrHorizontal && currNextHorizontal;
+                bool isCollinearVertical = prevCurrVertical && currNextVertical;
+                
+                // 不共线则保留（拐点）
+                if (!isCollinearHorizontal && !isCollinearVertical)
+                {
+                    cleaned.Add(curr);
+                }
+            }
+            
+            // 始终添加终点
+            cleaned.Add(path[path.Count - 1]);
+            
+            return cleaned;
+        }
+        
+        /// <summary>
+        /// 计算路径的边界矩形
+        /// </summary>
+        private Rect CalculatePathBounds(List<Vector2> path)
+        {
+            if (path.Count == 0)
+                return new Rect();
+            
+            float minX = float.MaxValue, minY = float.MaxValue;
+            float maxX = float.MinValue, maxY = float.MinValue;
+            
+            foreach (Vector2 point in path)
+            {
+                minX = Mathf.Min(minX, point.x);
+                minY = Mathf.Min(minY, point.y);
+                maxX = Mathf.Max(maxX, point.x);
+                maxY = Mathf.Max(maxY, point.y);
+            }
+            
+            // 添加走廊宽度
+            float corridorWidth = 4f;
+            return new Rect(
+                minX - corridorWidth,
+                minY - corridorWidth,
+                maxX - minX + corridorWidth * 2,
+                maxY - minY + corridorWidth * 2
+            );
+        }
+        
+        /// <summary>
+        /// 生成有序布局位置（随机化蛇形布局，保证走廊不交叉）
         /// </summary>
         private bool GenerateRandomPositions()
         {
@@ -153,74 +607,139 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
             int gridHeight = SingleGridHeight;
             int spacing = MinGridSpacing;
             
-            // 计算可用区域
-            int maxX = LayoutAreaWidth - gridWidth;
-            int maxY = LayoutAreaHeight - gridHeight;
+            // 走廊通道宽度（房间之间的间距，用于放置走廊）
+            int corridorSpace = spacing + 15;
             
-            if (maxX < 0 || maxY < 0)
+            // 计算每行可以放置的房间数量（留有余地）
+            int maxRoomsPerRow = Mathf.Max(1, (LayoutAreaWidth - corridorSpace) / (gridWidth + corridorSpace));
+            
+            // 随机决定每行实际放置的房间数量（1到最大值之间）
+            List<int> rowRoomCounts = new List<int>();
+            int remainingRooms = GridCount;
+            
+            while (remainingRooms > 0)
             {
-                Debug.LogError($"布局区域太小! 需要至少 {gridWidth}x{gridHeight} 的空间");
+                // 随机决定这一行放几个房间（至少1个，最多剩余数量或最大值）
+                int maxInThisRow = Mathf.Min(maxRoomsPerRow, remainingRooms);
+                int minInThisRow = Mathf.Max(1, maxInThisRow - 1);
+                int roomsInRow = _rng.Next(minInThisRow, maxInThisRow + 1);
+                
+                rowRoomCounts.Add(roomsInRow);
+                remainingRooms -= roomsInRow;
+            }
+            
+            int rowsNeeded = rowRoomCounts.Count;
+            
+            // 检查是否有足够的垂直空间
+            int totalHeightNeeded = rowsNeeded * gridHeight + (rowsNeeded - 1) * corridorSpace;
+            if (totalHeightNeeded > LayoutAreaHeight)
+            {
+                Debug.LogError($"布局区域高度不足! 需要 {totalHeightNeeded}, 可用 {LayoutAreaHeight}");
                 return false;
             }
             
-            for (int gridIndex = 0; gridIndex < GridCount; gridIndex++)
+            // 计算起始Y位置（从顶部开始，带随机偏移）
+            int verticalPadding = LayoutAreaHeight - totalHeightNeeded;
+            int startY = LayoutAreaHeight - gridHeight - _rng.Next(0, Mathf.Max(1, verticalPadding / 2));
+            
+            int gridIndex = 0;
+            for (int row = 0; row < rowsNeeded && gridIndex < GridCount; row++)
             {
-                bool placed = false;
+                int roomsInThisRow = rowRoomCounts[row];
                 
-                for (int attempt = 0; attempt < MaxPlacementAttempts; attempt++)
+                // 计算当前行的Y位置（带随机偏移）
+                int baseY = startY - row * (gridHeight + corridorSpace);
+                int yOffset = _rng.Next(-PositionRandomOffset / 2, PositionRandomOffset / 2 + 1);
+                int y = Mathf.Clamp(baseY + yOffset, 0, LayoutAreaHeight - gridHeight);
+                
+                // 蛇形布局：偶数行从左到右，奇数行从右到左
+                bool leftToRight = (row % 2 == 0);
+                
+                // 计算这一行的水平分布（随机化间距）
+                int totalRowWidth = roomsInThisRow * gridWidth + (roomsInThisRow - 1) * corridorSpace;
+                int horizontalPadding = LayoutAreaWidth - totalRowWidth;
+                int startX = _rng.Next(0, Mathf.Max(1, horizontalPadding));
+                
+                for (int col = 0; col < roomsInThisRow && gridIndex < GridCount; col++)
                 {
-                    // 随机生成位置
-                    int x = _rng.Next(0, maxX + 1);
-                    int y = _rng.Next(0, maxY + 1);
+                    int actualCol = leftToRight ? col : (roomsInThisRow - 1 - col);
                     
-                    // 添加随机偏移
+                    // 计算X位置（带随机间距）
+                    int randomSpacing = corridorSpace + _rng.Next(-5, 6);
+                    int x = startX + actualCol * (gridWidth + randomSpacing);
+                    
+                    // 添加额外随机偏移
                     if (PositionRandomOffset > 0)
                     {
-                        x += _rng.Next(-PositionRandomOffset, PositionRandomOffset + 1);
-                        y += _rng.Next(-PositionRandomOffset, PositionRandomOffset + 1);
-                        
-                        // 确保在有效范围内
-                        x = Mathf.Clamp(x, 0, maxX);
-                        y = Mathf.Clamp(y, 0, maxY);
+                        int maxOffset = Mathf.Min(PositionRandomOffset, corridorSpace / 3);
+                        x += _rng.Next(-maxOffset, maxOffset + 1);
                     }
                     
-                    // 检查是否与已放置的网格重叠
-                    Rect newBounds = new Rect(x - spacing, y - spacing, 
-                        gridWidth + spacing * 2, gridHeight + spacing * 2);
+                    // 确保在有效范围内且不重叠
+                    x = Mathf.Clamp(x, 0, LayoutAreaWidth - gridWidth);
+                    int finalY = Mathf.Clamp(y, 0, LayoutAreaHeight - gridHeight);
                     
+                    // 检查是否与已放置的网格重叠
+                    Rect newBounds = new Rect(x, finalY, gridWidth, gridHeight);
                     bool overlaps = false;
                     foreach (var existingBounds in _placedGridBounds)
                     {
-                        if (newBounds.Overlaps(existingBounds))
+                        Rect expandedExisting = new Rect(
+                            existingBounds.x - spacing,
+                            existingBounds.y - spacing,
+                            existingBounds.width + spacing * 2,
+                            existingBounds.height + spacing * 2
+                        );
+                        if (newBounds.Overlaps(expandedExisting))
                         {
                             overlaps = true;
                             break;
                         }
                     }
                     
-                    if (!overlaps)
+                    // 如果重叠，尝试调整位置
+                    if (overlaps)
                     {
-                        _gridPositions.Add(new Vector2Int(x, y));
-                        _placedGridBounds.Add(new Rect(x, y, gridWidth, gridHeight));
-                        placed = true;
-                        break;
+                        for (int attempt = 0; attempt < 10; attempt++)
+                        {
+                            x = startX + actualCol * (gridWidth + corridorSpace) + _rng.Next(-20, 21);
+                            x = Mathf.Clamp(x, 0, LayoutAreaWidth - gridWidth);
+                            newBounds = new Rect(x, finalY, gridWidth, gridHeight);
+                            
+                            overlaps = false;
+                            foreach (var existingBounds in _placedGridBounds)
+                            {
+                                Rect expandedExisting = new Rect(
+                                    existingBounds.x - spacing,
+                                    existingBounds.y - spacing,
+                                    existingBounds.width + spacing * 2,
+                                    existingBounds.height + spacing * 2
+                                );
+                                if (newBounds.Overlaps(expandedExisting))
+                                {
+                                    overlaps = true;
+                                    break;
+                                }
+                            }
+                            
+                            if (!overlaps) break;
+                        }
                     }
-                }
-                
-                if (!placed)
-                {
-                    Debug.LogWarning($"无法放置第{gridIndex + 1}个网格，已尝试{MaxPlacementAttempts}次");
-                    return false;
+                    
+                    _gridPositions.Add(new Vector2Int(x, finalY));
+                    _placedGridBounds.Add(new Rect(x, finalY, gridWidth, gridHeight));
+                    
+                    gridIndex++;
                 }
             }
             
+            Debug.Log($"随机化蛇形布局完成: {rowsNeeded}行, 房间分布: {string.Join(",", rowRoomCounts)}");
             return true;
         }
         
         /// <summary>
         /// 清除所有网格
         /// </summary>
-        [ContextMenu("清除所有网格")]
         public void ClearAllGrids()
         {
             if (LevelGenerator != null && LevelGenerator.TilemapLayers != null)
@@ -232,6 +751,7 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
                 _exitPositions.Clear();
                 _entranceDirections.Clear();
                 _exitDirections.Clear();
+                _corridorPaths.Clear();
                 Debug.Log("所有网格已清除");
             }
         }
@@ -250,6 +770,14 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
         public List<Rect> GetGridBounds()
         {
             return new List<Rect>(_placedGridBounds);
+        }
+        
+        /// <summary>
+        /// 获取走廊路径列表（供外部访问）
+        /// </summary>
+        public List<List<Vector2>> GetCorridorPaths()
+        {
+            return _corridorPaths;
         }
         
         /// <summary>
@@ -847,14 +1375,17 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
                     {
                         // 根据房间在网格中的位置选择入口方向
                         Direction entranceDir = GetBestEntranceDirection(gx, gy, shape);
-                        DrawPortal(worldX, worldY, roomWidth, roomHeight, wallThickness, 
+                        
+                        // 绘制门户并获取精确锚点数据
+                        PortalAnchor entranceAnchor = DrawPortal(worldX, worldY, roomWidth, roomHeight, wallThickness, 
                             entranceWidth, entranceHeight, entranceDir, true,
                             wallTilemap, fillTilemap, entranceTilemap, greenTile);
                         
-                        // 记录入口位置和方向
-                        Vector3 entrancePos = GetPortalPosition(worldX, worldY, roomWidth, roomHeight, 
-                            wallThickness, entranceWidth, entranceDir);
-                        _entrancePositions.Add(entrancePos);
+                        // 存储锚点数据
+                        _entranceAnchors.Add(entranceAnchor);
+                        
+                        // 兼容性：同时更新原有列表用于预览
+                        _entrancePositions.Add(new Vector3(entranceAnchor.AnchorPoint.x, entranceAnchor.AnchorPoint.y, 0));
                         _entranceDirections.Add(entranceDir);
                     }
                     
@@ -862,14 +1393,17 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
                     {
                         // 根据房间在网格中的位置选择出口方向
                         Direction exitDir = GetBestExitDirection(gx, gy, shape);
-                        DrawPortal(worldX, worldY, roomWidth, roomHeight, wallThickness,
+                        
+                        // 绘制门户并获取精确锚点数据
+                        PortalAnchor exitAnchor = DrawPortal(worldX, worldY, roomWidth, roomHeight, wallThickness,
                             entranceWidth, entranceHeight, exitDir, false,
                             wallTilemap, fillTilemap, exitTilemap, blackTile);
                         
-                        // 记录出口位置和方向
-                        Vector3 exitPos = GetPortalPosition(worldX, worldY, roomWidth, roomHeight,
-                            wallThickness, entranceWidth, exitDir);
-                        _exitPositions.Add(exitPos);
+                        // 存储锚点数据
+                        _exitAnchors.Add(exitAnchor);
+                        
+                        // 兼容性：同时更新原有列表用于预览
+                        _exitPositions.Add(new Vector3(exitAnchor.AnchorPoint.x, exitAnchor.AnchorPoint.y, 0));
                         _exitDirections.Add(exitDir);
                     }
                 }
@@ -878,28 +1412,27 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
         
         /// <summary>
         /// 根据房间位置获取最佳入口方向
+        /// 简化逻辑：优先选择可用的外围方向
         /// </summary>
         private Direction GetBestEntranceDirection(int gx, int gy, LevelShape shape)
         {
-            // 入口方向选择策略：优先选择外围方向，避开有效相邻房间
-            // 收集所有可用的外围方向
+            // 收集所有可用的外围方向（没有相邻房间的方向）
             List<Direction> availableDirections = new List<Direction>();
             
-            // 检查各个方向是否可用（在边缘或没有有效相邻房间）
             bool canNorth = (gy == 0) || !shape.IsValidCell(gx, gy - 1);
             bool canSouth = (gy == LevelShape.GridHeight - 1) || !shape.IsValidCell(gx, gy + 1);
             bool canWest = (gx == 0) || !shape.IsValidCell(gx - 1, gy);
             bool canEast = (gx == LevelShape.GridWidth - 1) || !shape.IsValidCell(gx + 1, gy);
             
-            // 优先级：左侧 > 顶部 > 右侧（避免与出口方向冲突）
+            // 入口优先级：左 > 上 > 下 > 右
             if (canWest) availableDirections.Add(Direction.West);
             if (canNorth) availableDirections.Add(Direction.North);
+            if (canSouth) availableDirections.Add(Direction.South);
             if (canEast) availableDirections.Add(Direction.East);
             
-            // 如果有可用方向，随机选择一个
             if (availableDirections.Count > 0)
             {
-                return availableDirections[_rng.Next(availableDirections.Count)];
+                return availableDirections[0]; // 返回最优先的方向
             }
             
             // 默认顶部
@@ -908,28 +1441,27 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
         
         /// <summary>
         /// 根据房间位置获取最佳出口方向
+        /// 简化逻辑：优先选择可用的外围方向
         /// </summary>
         private Direction GetBestExitDirection(int gx, int gy, LevelShape shape)
         {
-            // 出口方向选择策略：优先选择外围方向，避开有效相邻房间
-            // 收集所有可用的外围方向
+            // 收集所有可用的外围方向（没有相邻房间的方向）
             List<Direction> availableDirections = new List<Direction>();
             
-            // 检查各个方向是否可用（在边缘或没有有效相邻房间）
             bool canNorth = (gy == 0) || !shape.IsValidCell(gx, gy - 1);
             bool canSouth = (gy == LevelShape.GridHeight - 1) || !shape.IsValidCell(gx, gy + 1);
             bool canWest = (gx == 0) || !shape.IsValidCell(gx - 1, gy);
             bool canEast = (gx == LevelShape.GridWidth - 1) || !shape.IsValidCell(gx + 1, gy);
             
-            // 优先级：右侧 > 底部 > 左侧（避免与入口方向冲突）
+            // 出口优先级：右 > 下 > 上 > 左（与入口相反）
             if (canEast) availableDirections.Add(Direction.East);
             if (canSouth) availableDirections.Add(Direction.South);
+            if (canNorth) availableDirections.Add(Direction.North);
             if (canWest) availableDirections.Add(Direction.West);
             
-            // 如果有可用方向，随机选择一个
             if (availableDirections.Count > 0)
             {
-                return availableDirections[_rng.Next(availableDirections.Count)];
+                return availableDirections[0]; // 返回最优先的方向
             }
             
             // 默认底部
@@ -937,16 +1469,66 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
         }
         
         /// <summary>
-        /// 绘制入口/出口门户
+        /// 获取外围方向（入口或出口）
         /// </summary>
-        private void DrawPortal(int worldX, int worldY, int roomWidth, int roomHeight, int wallThickness,
+        private Direction GetOuterDirection(int gx, int gy, LevelShape shape, bool isEntrance)
+        {
+            List<Direction> availableDirections = new List<Direction>();
+            
+            bool canNorth = (gy == 0) || !shape.IsValidCell(gx, gy - 1);
+            bool canSouth = (gy == LevelShape.GridHeight - 1) || !shape.IsValidCell(gx, gy + 1);
+            bool canWest = (gx == 0) || !shape.IsValidCell(gx - 1, gy);
+            bool canEast = (gx == LevelShape.GridWidth - 1) || !shape.IsValidCell(gx + 1, gy);
+            
+            if (isEntrance)
+            {
+                // 入口优先：左 > 上 > 右
+                if (canWest) availableDirections.Add(Direction.West);
+                if (canNorth) availableDirections.Add(Direction.North);
+                if (canEast) availableDirections.Add(Direction.East);
+            }
+            else
+            {
+                // 出口优先：右 > 下 > 左
+                if (canEast) availableDirections.Add(Direction.East);
+                if (canSouth) availableDirections.Add(Direction.South);
+                if (canWest) availableDirections.Add(Direction.West);
+            }
+            
+            if (availableDirections.Count > 0)
+            {
+                return availableDirections[_rng.Next(availableDirections.Count)];
+            }
+            
+            return isEntrance ? Direction.North : Direction.South;
+        }
+        
+        /// <summary>
+        /// 获取下一个网格的预期位置（用于方向预测）
+        /// </summary>
+        private Vector2Int GetNextGridPosition()
+        {
+            if (_gridPositions.Count == 0)
+                return new Vector2Int(0, 0);
+            
+            Vector2Int lastPos = _gridPositions[_gridPositions.Count - 1];
+            int spacing = MinGridSpacing + 15;
+            
+            // 简单预测：右侧或下方
+            return new Vector2Int(lastPos.x + SingleGridWidth + spacing, lastPos.y);
+        }
+        
+        /// <summary>
+        /// 绘制入口/出口门户并返回精确锚点数据
+        /// </summary>
+        private PortalAnchor DrawPortal(int worldX, int worldY, int roomWidth, int roomHeight, int wallThickness,
             int portalWidth, int portalHeight, Direction direction, bool isEntrance,
             Tilemap wallTilemap, Tilemap fillTilemap, Tilemap portalTilemap, TileBase portalTile)
         {
             int centerX = worldX + roomWidth / 2;
             int centerY = worldY + roomHeight / 2;
             
-            int portalX, portalY, clearWidth, clearHeight;
+            int portalX = 0, portalY = 0;
             
             switch (direction)
             {
@@ -986,10 +1568,104 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
                         FillRect(portalTilemap, portalTile, portalX, portalY, wallThickness, portalWidth);
                     break;
             }
+            
+            // 计算精确锚点（门瓦片中心）
+            Vector2 anchorPoint = CalculatePortalAnchorPoint(portalX, portalY, portalWidth, wallThickness, direction);
+            
+            // 计算水平接入段和引导点
+            float verticalExtend = Mathf.Max(wallThickness + 2f, ObstacleMargin + 1f);  // 垂直延伸距离
+            float horizontalStubLength = 3f;  // 水平接入段长度
+            float approachExtend = 2f;  // 引导点额外延伸
+            
+            Vector2 horizontalStubEnd;
+            Vector2 approachPoint;
+            
+            // 根据门方向计算水平接入段
+            // 注意：此时不知道目标房间位置，先使用默认方向，后续在走廊生成时会调整
+            switch (direction)
+            {
+                case Direction.North:
+                    // 北向门：先向上延伸，然后水平（默认向右，后续调整）
+                    horizontalStubEnd = anchorPoint + Vector2.up * verticalExtend;
+                    approachPoint = horizontalStubEnd + Vector2.right * horizontalStubLength;
+                    break;
+                case Direction.South:
+                    // 南向门：先向下延伸，然后水平（默认向右，后续调整）
+                    horizontalStubEnd = anchorPoint + Vector2.down * verticalExtend;
+                    approachPoint = horizontalStubEnd + Vector2.right * horizontalStubLength;
+                    break;
+                case Direction.East:
+                    // 东向门：直接水平向右（本身就是水平）
+                    horizontalStubEnd = anchorPoint + Vector2.right * verticalExtend;
+                    approachPoint = horizontalStubEnd + Vector2.right * horizontalStubLength;
+                    break;
+                case Direction.West:
+                    // 西向门：直接水平向左（本身就是水平）
+                    horizontalStubEnd = anchorPoint + Vector2.left * verticalExtend;
+                    approachPoint = horizontalStubEnd + Vector2.left * horizontalStubLength;
+                    break;
+                default:
+                    horizontalStubEnd = anchorPoint;
+                    approachPoint = anchorPoint;
+                    break;
+            }
+            
+            return new PortalAnchor
+            {
+                AnchorPoint = anchorPoint,
+                HorizontalStubEnd = horizontalStubEnd,
+                ApproachPoint = approachPoint,
+                Direction = direction,
+                IsEntrance = isEntrance
+            };
         }
         
         /// <summary>
-        /// 获取门户中心位置
+        /// 计算门瓦片中心的精确锚点坐标
+        /// </summary>
+        private Vector2 CalculatePortalAnchorPoint(int portalX, int portalY, int portalWidth, int wallThickness, Direction direction)
+        {
+            // 根据方向计算门瓦片区域的中心点
+            switch (direction)
+            {
+                case Direction.North:
+                case Direction.South:
+                    // 水平方向的门：中心在 (portalX + portalWidth/2, portalY + wallThickness/2)
+                    return new Vector2(portalX + portalWidth / 2f, portalY + wallThickness / 2f);
+                    
+                case Direction.East:
+                case Direction.West:
+                    // 垂直方向的门：中心在 (portalX + wallThickness/2, portalY + portalWidth/2)
+                    return new Vector2(portalX + wallThickness / 2f, portalY + portalWidth / 2f);
+                    
+                default:
+                    return new Vector2(portalX, portalY);
+            }
+        }
+        
+        /// <summary>
+        /// 计算引导点（锚点向外延伸）
+        /// </summary>
+        private Vector2 CalculateApproachPoint(Vector2 anchorPoint, Direction direction, float distance)
+        {
+            switch (direction)
+            {
+                case Direction.North:
+                    return anchorPoint + Vector2.up * distance;
+                case Direction.South:
+                    return anchorPoint + Vector2.down * distance;
+                case Direction.East:
+                    return anchorPoint + Vector2.right * distance;
+                case Direction.West:
+                    return anchorPoint + Vector2.left * distance;
+                default:
+                    return anchorPoint;
+            }
+        }
+        
+        /// <summary>
+        /// 获取门户中心位置（向外延伸，用于走廊连接）
+        /// 确保延伸距离大于 ObstacleMargin，避免起点落在扩展障碍物内
         /// </summary>
         private Vector3 GetPortalPosition(int worldX, int worldY, int roomWidth, int roomHeight,
             int wallThickness, int portalWidth, Direction direction)
@@ -997,16 +1673,24 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
             int centerX = worldX + roomWidth / 2;
             int centerY = worldY + roomHeight / 2;
             
+            // 【关键修改】确保延伸距离大于 ObstacleMargin
+            // 走廊起点必须在扩展障碍物边界之外，否则 A* 寻路会立即失败
+            float extendDistance = Mathf.Max(wallThickness + 5f, ObstacleMargin + 3f);
+            
             switch (direction)
             {
                 case Direction.North:
-                    return new Vector3(centerX, worldY + roomHeight - wallThickness / 2f, 0);
+                    // 向上延伸
+                    return new Vector3(centerX, worldY + roomHeight + extendDistance, 0);
                 case Direction.South:
-                    return new Vector3(centerX, worldY + wallThickness / 2f, 0);
+                    // 向下延伸
+                    return new Vector3(centerX, worldY - extendDistance, 0);
                 case Direction.West:
-                    return new Vector3(worldX + wallThickness / 2f, centerY, 0);
+                    // 向左延伸
+                    return new Vector3(worldX - extendDistance, centerY, 0);
                 case Direction.East:
-                    return new Vector3(worldX + roomWidth - wallThickness / 2f, centerY, 0);
+                    // 向右延伸
+                    return new Vector3(worldX + roomWidth + extendDistance, centerY, 0);
                 default:
                     return new Vector3(centerX, centerY, 0);
             }
@@ -1279,6 +1963,36 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
                     
                     // 根据方向绘制箭头（指向房间外部）
                     DrawDirectionalArrow(pos, dir, false);
+                }
+            }
+            
+            // 绘制走廊路径
+            if (ShowCorridorPaths && _corridorPaths != null && _corridorPaths.Count > 0)
+            {
+                Gizmos.color = CorridorPathColor;
+                
+                for (int corridorIndex = 0; corridorIndex < _corridorPaths.Count; corridorIndex++)
+                {
+                    List<Vector2> path = _corridorPaths[corridorIndex];
+                    
+                    if (path == null || path.Count < 2)
+                        continue;
+                    
+                    // 绘制路径线段
+                    for (int i = 0; i < path.Count - 1; i++)
+                    {
+                        Vector3 start = new Vector3(path[i].x, path[i].y, 0);
+                        Vector3 end = new Vector3(path[i + 1].x, path[i + 1].y, 0);
+                        Gizmos.DrawLine(start, end);
+                    }
+                    
+                    // 在路径中点绘制走廊编号
+                    if (path.Count > 1)
+                    {
+                        int midIndex = path.Count / 2;
+                        Vector3 midPoint = new Vector3(path[midIndex].x, path[midIndex].y, 0);
+                        Gizmos.DrawSphere(midPoint, MarkerSize * 0.5f);
+                    }
                 }
             }
         }
