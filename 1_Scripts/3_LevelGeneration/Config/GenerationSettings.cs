@@ -5,7 +5,7 @@ namespace CryptaGeometrica.LevelGeneration
     /// <summary>
     /// 生成设置 - 控制关卡生成的各种参数
     /// </summary>
-    [CreateAssetMenu(fileName = "GenerationSettings", menuName = "CryptaGeometrica/PCG/GenerationSettings")]
+    [CreateAssetMenu(fileName = "GenerationSettings", menuName = "Crypta Geometrica:RE/PCG程序化关卡/GenerationSettings")]
     public class GenerationSettings : ScriptableObject
     {
         [Header("网格单元格尺寸")]

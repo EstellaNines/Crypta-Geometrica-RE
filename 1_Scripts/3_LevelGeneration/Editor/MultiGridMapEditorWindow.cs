@@ -32,11 +32,12 @@ namespace CryptaGeometrica.LevelGeneration.Editor
         private bool _stylesInitialized = false;
         
         // ==================== 颜色定义 ====================
-        private readonly Color _wallColor = new Color(1f, 0.5f, 0f, 1f);      // 橙色 - 墙壁
-        private readonly Color _fillColor = new Color(0.3f, 0.3f, 0.3f, 1f);  // 灰色 - 填充
-        private readonly Color _platformColor = new Color(0f, 0.5f, 1f, 1f);  // 蓝色 - 平台
+        private readonly Color _wallColor = new Color(0f, 0f, 0f, 1f);        // 黑色 - 墙壁
+        private readonly Color _fillColor = new Color(0.5f, 0.5f, 0.5f, 1f);  // 灰色 - 填充
+        private readonly Color _surfaceColor = new Color(1f, 1f, 1f, 1f);     // 白色 - 表层
+        private readonly Color _platformColor = new Color(1f, 0.75f, 0.8f, 1f); // 粉色 - 平台
         private readonly Color _entranceColor = new Color(0f, 1f, 0f, 1f);    // 绿色 - 入口
-        private readonly Color _exitColor = new Color(0f, 0f, 0f, 1f);        // 黑色 - 出口
+        private readonly Color _exitColor = new Color(1f, 0f, 0f, 1f);        // 红色 - 出口
         private readonly Color _specialColor = new Color(1f, 1f, 0f, 1f);     // 黄色 - 特殊区域
         private readonly Color _gridBoundsColor = new Color(0f, 1f, 0f, 0.5f); // 绿色半透明 - 网格边界
         private readonly Color _layoutAreaColor = new Color(1f, 1f, 0f, 0.3f); // 黄色半透明 - 布局区域
@@ -314,6 +315,18 @@ namespace CryptaGeometrica.LevelGeneration.Editor
             EditorGUILayout.LabelField($"入口数量: {entrances.Count}");
             EditorGUILayout.LabelField($"出口数量: {exits.Count}");
             
+            // 显示出生点和通关点
+            if (_targetManager.HasSpawnPoint)
+            {
+                Vector3 spawn = _targetManager.GetPlayerSpawnPoint();
+                EditorGUILayout.LabelField($"出生点: ({spawn.x:F1}, {spawn.y:F1})");
+            }
+            if (_targetManager.HasExitPoint)
+            {
+                Vector3 exit = _targetManager.GetLevelExitPoint();
+                EditorGUILayout.LabelField($"通关点: ({exit.x:F1}, {exit.y:F1})");
+            }
+            
             if (positions.Count > 0)
             {
                 EditorGUILayout.Space(5);
@@ -336,18 +349,20 @@ namespace CryptaGeometrica.LevelGeneration.Editor
             EditorGUILayout.BeginVertical("box");
             EditorGUILayout.LabelField("瓦片图例", _subHeaderStyle);
             
-            DrawLegendItem(_wallColor, "橙色", "墙壁/边界");
+            DrawLegendItem(_wallColor, "黑色", "墙壁/边界");
             DrawLegendItem(_fillColor, "灰色", "洞穴填充");
-            DrawLegendItem(_platformColor, "蓝色", "平台");
+            DrawLegendItem(_surfaceColor, "白色", "表层瓦片");
+            DrawLegendItem(_platformColor, "粉色", "平台");
             DrawLegendItem(_entranceColor, "绿色", "入口 (↓指向内部)");
-            DrawLegendItem(_exitColor, "黑色", "出口 (↓指向外部)");
+            DrawLegendItem(_exitColor, "红色", "出口 (↓指向外部)");
             DrawLegendItem(_specialColor, "黄色", "特殊区域/Boss房");
             
             EditorGUILayout.Space(5);
             EditorGUILayout.LabelField("预览标记", _subHeaderStyle);
             DrawLegendItem(_gridBoundsColor, "绿框", "网格边界");
             DrawLegendItem(_layoutAreaColor, "黄框", "布局区域");
-            DrawLegendItem(new Color(1f, 0.5f, 0f, 1f), "橙线", "走廊路径 (Cn=走廊编号)");
+            DrawLegendItem(new Color(0f, 0.5f, 1f, 1f), "蓝色", "玩家出生点");
+            DrawLegendItem(new Color(1f, 0.8f, 0f, 1f), "金色", "通关点");
             
             EditorGUILayout.EndVertical();
         }
@@ -519,83 +534,32 @@ namespace CryptaGeometrica.LevelGeneration.Editor
                 DrawPortalMarker(screenPos, dir, false, finalScale);
             }
             
-            // 绘制走廊路径
-            var corridorPaths = _targetManager.GetCorridorPaths();
-            if (corridorPaths != null && corridorPaths.Count > 0)
+            // 绘制玩家出生点（蓝色圆形）
+            if (_targetManager.HasSpawnPoint)
             {
-                DrawCorridorPaths(corridorPaths, layoutOrigin, layoutHeight, finalScale);
+                Vector3 spawnPos = _targetManager.GetPlayerSpawnPoint();
+                Vector2 screenPos = new Vector2(
+                    layoutOrigin.x + spawnPos.x * finalScale,
+                    layoutOrigin.y + (layoutHeight - spawnPos.y) * finalScale
+                );
+                DrawSpawnOrExitMarker(screenPos, new Color(0f, 0.5f, 1f, 1f), finalScale, "S");
+            }
+            
+            // 绘制通关点（金色圆形）
+            if (_targetManager.HasExitPoint)
+            {
+                Vector3 exitPos = _targetManager.GetLevelExitPoint();
+                Vector2 screenPos = new Vector2(
+                    layoutOrigin.x + exitPos.x * finalScale,
+                    layoutOrigin.y + (layoutHeight - exitPos.y) * finalScale
+                );
+                DrawSpawnOrExitMarker(screenPos, new Color(1f, 0.8f, 0f, 1f), finalScale, "E");
             }
             
             // 绘制预估网格位置（如果没有生成）
             if (positions.Count == 0)
             {
                 DrawEstimatedGrids(layoutOrigin, layoutSize, finalScale);
-            }
-        }
-        
-        /// <summary>
-        /// 绘制走廊路径
-        /// </summary>
-        private void DrawCorridorPaths(List<List<Vector2>> corridorPaths, Vector2 layoutOrigin, float layoutHeight, float scale)
-        {
-            Color corridorColor = new Color(1f, 0.5f, 0f, 1f); // 橙色
-            
-            for (int corridorIndex = 0; corridorIndex < corridorPaths.Count; corridorIndex++)
-            {
-                List<Vector2> path = corridorPaths[corridorIndex];
-                
-                if (path == null || path.Count < 2)
-                    continue;
-                
-                // 绘制路径线段
-                for (int i = 0; i < path.Count - 1; i++)
-                {
-                    Vector2 start = new Vector2(
-                        layoutOrigin.x + path[i].x * scale,
-                        layoutOrigin.y + (layoutHeight - path[i].y) * scale
-                    );
-                    Vector2 end = new Vector2(
-                        layoutOrigin.x + path[i + 1].x * scale,
-                        layoutOrigin.y + (layoutHeight - path[i + 1].y) * scale
-                    );
-                    
-                    // 绘制线段
-                    Handles.color = corridorColor;
-                    Handles.DrawLine(start, end);
-                }
-                
-                // 在路径起点和终点绘制标记
-                if (path.Count > 0)
-                {
-                    // 起点（出口）
-                    Vector2 startPos = new Vector2(
-                        layoutOrigin.x + path[0].x * scale,
-                        layoutOrigin.y + (layoutHeight - path[0].y) * scale
-                    );
-                    EditorGUI.DrawRect(new Rect(startPos.x - 3, startPos.y - 3, 6, 6), corridorColor);
-                    
-                    // 终点（入口）
-                    Vector2 endPos = new Vector2(
-                        layoutOrigin.x + path[path.Count - 1].x * scale,
-                        layoutOrigin.y + (layoutHeight - path[path.Count - 1].y) * scale
-                    );
-                    EditorGUI.DrawRect(new Rect(endPos.x - 3, endPos.y - 3, 6, 6), corridorColor);
-                    
-                    // 绘制走廊编号
-                    int midIndex = path.Count / 2;
-                    Vector2 midPos = new Vector2(
-                        layoutOrigin.x + path[midIndex].x * scale,
-                        layoutOrigin.y + (layoutHeight - path[midIndex].y) * scale
-                    );
-                    GUI.Label(new Rect(midPos.x - 10, midPos.y - 10, 20, 20),
-                        $"C{corridorIndex}",
-                        new GUIStyle(GUI.skin.label) 
-                        { 
-                            normal = { textColor = Color.white },
-                            fontSize = 10,
-                            alignment = TextAnchor.MiddleCenter
-                        });
-                }
             }
         }
         
@@ -632,23 +596,6 @@ namespace CryptaGeometrica.LevelGeneration.Editor
                 DrawTilemapLayer(layers.PlatformLayer, layoutOrigin, layoutHeight, scale, tilePixelSize, _platformColor);
             }
             
-            // 4. 特殊层 (黄色)
-            if (layers.SpecialLayer != null)
-            {
-                DrawTilemapLayer(layers.SpecialLayer, layoutOrigin, layoutHeight, scale, tilePixelSize, _specialColor);
-            }
-            
-            // 5. 入口层 (绿色)
-            if (layers.EntranceLayer != null)
-            {
-                DrawTilemapLayer(layers.EntranceLayer, layoutOrigin, layoutHeight, scale, tilePixelSize, _entranceColor);
-            }
-            
-            // 6. 出口层 (黑色)
-            if (layers.ExitLayer != null)
-            {
-                DrawTilemapLayer(layers.ExitLayer, layoutOrigin, layoutHeight, scale, tilePixelSize, _exitColor);
-            }
         }
         
         /// <summary>
@@ -684,31 +631,52 @@ namespace CryptaGeometrica.LevelGeneration.Editor
         }
         
         /// <summary>
-        /// 绘制门户标记
+        /// 绘制门户标记（线框+方向箭头）
         /// </summary>
         private void DrawPortalMarker(Vector2 screenPos, Direction direction, bool isEntrance, float scale)
         {
             Color color = isEntrance ? _entranceColor : _exitColor;
             float markerSize = 8 * Mathf.Max(0.5f, scale * 0.1f);
             
-            // 绘制圆形标记
-            Rect markerRect = new Rect(screenPos.x - markerSize, screenPos.y - markerSize, markerSize * 2, markerSize * 2);
+            Handles.color = color;
             
-            // 简化：绘制方形代替圆形
-            EditorGUI.DrawRect(markerRect, color);
+            // 根据方向绘制线框矩形
+            float rectWidth, rectHeight;
+            if (direction == Direction.North || direction == Direction.South)
+            {
+                // 水平方向的门户
+                rectWidth = markerSize * 3f;
+                rectHeight = markerSize * 1f;
+            }
+            else
+            {
+                // 垂直方向的门户
+                rectWidth = markerSize * 1f;
+                rectHeight = markerSize * 3f;
+            }
+            
+            // 绘制线框
+            Vector2 topLeft = new Vector2(screenPos.x - rectWidth / 2, screenPos.y - rectHeight / 2);
+            Vector2 topRight = new Vector2(screenPos.x + rectWidth / 2, screenPos.y - rectHeight / 2);
+            Vector2 bottomRight = new Vector2(screenPos.x + rectWidth / 2, screenPos.y + rectHeight / 2);
+            Vector2 bottomLeft = new Vector2(screenPos.x - rectWidth / 2, screenPos.y + rectHeight / 2);
+            
+            Handles.DrawLine(topLeft, topRight);
+            Handles.DrawLine(topRight, bottomRight);
+            Handles.DrawLine(bottomRight, bottomLeft);
+            Handles.DrawLine(bottomLeft, topLeft);
             
             // 绘制方向箭头
             Vector2 arrowDir = GetArrowDirection(direction, isEntrance);
             Vector2 arrowStart = screenPos;
-            Vector2 arrowEnd = screenPos + arrowDir * markerSize * 2;
+            Vector2 arrowEnd = screenPos + arrowDir * markerSize * 2.5f;
             
-            Handles.color = color;
             Handles.DrawLine(arrowStart, arrowEnd);
             
             // 箭头头部
             Vector2 perpendicular = new Vector2(-arrowDir.y, arrowDir.x);
-            Vector2 arrowHead1 = arrowEnd - arrowDir * markerSize * 0.5f + perpendicular * markerSize * 0.5f;
-            Vector2 arrowHead2 = arrowEnd - arrowDir * markerSize * 0.5f - perpendicular * markerSize * 0.5f;
+            Vector2 arrowHead1 = arrowEnd - arrowDir * markerSize * 0.6f + perpendicular * markerSize * 0.4f;
+            Vector2 arrowHead2 = arrowEnd - arrowDir * markerSize * 0.6f - perpendicular * markerSize * 0.4f;
             
             Handles.DrawLine(arrowEnd, arrowHead1);
             Handles.DrawLine(arrowEnd, arrowHead2);
@@ -824,6 +792,29 @@ namespace CryptaGeometrica.LevelGeneration.Editor
                 e.Use();
                 Repaint();
             }
+        }
+        
+        /// <summary>
+        /// 绘制出生点或通关点标记
+        /// </summary>
+        private void DrawSpawnOrExitMarker(Vector2 screenPos, Color color, float scale, string label)
+        {
+            float markerSize = 10 * Mathf.Max(0.5f, scale * 0.1f);
+            
+            // 绘制圆形背景
+            Rect markerRect = new Rect(screenPos.x - markerSize, screenPos.y - markerSize, markerSize * 2, markerSize * 2);
+            EditorGUI.DrawRect(markerRect, color);
+            
+            // 绘制外框
+            Handles.color = Color.white;
+            Handles.DrawWireDisc(new Vector3(screenPos.x, screenPos.y, 0), Vector3.forward, markerSize);
+            
+            // 绘制标签
+            GUIStyle labelStyle = new GUIStyle(EditorStyles.boldLabel);
+            labelStyle.alignment = TextAnchor.MiddleCenter;
+            labelStyle.normal.textColor = Color.white;
+            labelStyle.fontSize = Mathf.Max(8, (int)(markerSize * 0.8f));
+            GUI.Label(markerRect, label, labelStyle);
         }
     }
 }

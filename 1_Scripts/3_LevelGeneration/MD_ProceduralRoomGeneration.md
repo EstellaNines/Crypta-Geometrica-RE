@@ -1,49 +1,35 @@
-# 程序化多房间+走廊随机生成系统技术文档
+# 程序化多房间随机生成系统技术文档
 
 > **项目**: Crypta Geometrica: RE  
-> **版本**: 2.0  
+> **版本**: 2.1  
 > **更新日期**: 2026-01-16  
-> **风格参考**: Spelunky (醉汉游走) + Dead Cells (走廊连接)
+> **风格参考**: Spelunky (醉汉游走)
 
 ---
 
 ## 1. 系统概述
 
-本系统实现了一套完整的程序化关卡生成方案，采用 **多网格蛇形布局 + A*走廊寻路 + 单网格醉汉游走** 的三层架构。
+本系统实现了一套完整的程序化关卡生成方案，采用 **多网格蛇形布局 + 单网格醉汉游走** 的双层架构。
 
 ### 1.1 核心特性
 
 | 特性 | 实现方式 | 参考游戏 |
 | ---- | -------- | -------- |
 | 多网格布局 | 随机化蛇形排列 | Dead Cells |
-| 走廊连接 | A*寻路 + 曼哈顿路径 | Dead Cells |
 | 单网格路径 | 醉汉游走算法 | Spelunky |
 | 洞穴填充 | 细胞自动机 | Spelunky |
-| 双层走廊 | 水平/垂直偏移避免重叠 | 原创 |
 
 ### 1.2 系统架构图
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                    MultiGridLevelManager                        │
-│  (多网格管理器 - 蛇形布局 + 走廊生成)                            │
+│  (多网格管理器 - 蛇形布局)                                       │
 ├─────────────────────────────────────────────────────────────────┤
 │  - GenerateRandomPositions()    # 随机化蛇形布局                 │
-│  - GenerateCorridorPaths()      # A*走廊寻路                     │
 │  - GenerateSingleGridAtOffset() # 调用单网格生成                 │
 └─────────────────────────┬───────────────────────────────────────┘
                           │ 调用
-                          ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    CorridorPathfinder                           │
-│  (走廊寻路器 - A*算法 + 曼哈顿路径)                              │
-├─────────────────────────────────────────────────────────────────┤
-│  - FindPath()                   # 基础A*寻路                     │
-│  - GenerateDeadCellsStylePath() # Dead Cells风格路径             │
-│  - AStarManhattanSearch()       # 4方向曼哈顿A*                  │
-│  - GenerateStairSegment()       # L/Z形阶梯生成                  │
-└─────────────────────────────────────────────────────────────────┘
-                          │ 依赖
                           ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                    GrayboxLevelGenerator                        │
@@ -71,16 +57,16 @@
 │   ├── RoomNode.cs               # 房间节点数据结构
 │   └── RoomType.cs               # 房间类型 + 方向枚举
 ├── Graybox/
-│   ├── CorridorPathfinder.cs     # 走廊A*寻路器 ★核心
+│   ├── GrayboxGridPreview.cs     # 网格预览组件
 │   ├── GrayboxLevelGenerator.cs  # 单网格关卡生成器 ★核心
+│   ├── GrayboxRoomTemplates.cs   # 房间模板配置
 │   ├── GrayboxTilemapLayers.cs   # 6层Tilemap配置
 │   ├── GrayboxTileSet.cs         # 瓦片集配置
 │   └── MultiGridLevelManager.cs  # 多网格管理器 ★核心
-└── MD_ProceduralRoomGeneration.md
+├── MD_ProceduralRoomGeneration.md      # 技术文档 (本文档)
+└── MD_ProceduralRoomGeneration_API.md  # API参考文档
 
 Editor/3_LevelGeneration/
-├── GrayboxLevelGeneratorEditor.cs  # 生成器Inspector
-├── GrayboxPreviewEditor.cs         # 预览编辑器窗口
 └── MultiGridMapEditorWindow.cs     # 多网格地图编辑器
 ```
 
@@ -149,150 +135,9 @@ private bool GenerateRandomPositions()
 
 ---
 
-## 4. 走廊寻路系统 (CorridorPathfinder)
+## 4. 单网格生成系统 (GrayboxLevelGenerator)
 
-### 4.1 Dead Cells 风格走廊
-
-走廊采用 **纯曼哈顿路径**（只有水平和垂直线段），形成清晰的 L形/Z形 拐角：
-
-```text
-L形走廊:          Z形走廊:
-┌───┐             ┌───┐
-│   │             │   │
-│   └────────     │   └────┐
-│                 │        │
-└─────────────    └────────┘
-```
-
-### 4.2 核心算法: GenerateDeadCellsStylePath
-
-```csharp
-private List<Vector2> GenerateDeadCellsStylePath(Vector2 start, Vector2 end)
-{
-    // 1. 检查起点/终点是否在安全区域
-    Vector2 safeStart = startSafe ? start : ExtendPointOutsideRoom(start);
-    Vector2 safeEnd = endSafe ? end : ExtendPointOutsideRoom(end);
-    
-    // 2. 尝试生成阶梯状路径 (优先)
-    List<Vector2> middlePath = GenerateExternalStairPath(safeStart, safeEnd);
-    
-    // 3. 如果阶梯路径无效，使用A*寻路
-    if (middlePath.Count == 0 || !ValidatePathSegments(...))
-    {
-        middlePath = GenerateAStarExternalPath(safeStart, safeEnd);
-    }
-    
-    // 4. 如果A*也失败，尝试简单L形路径
-    if (middlePath.Count == 0)
-    {
-        middlePath = GenerateSimpleLPath(safeStart, safeEnd);
-    }
-    
-    // 5. 强制转换为曼哈顿路径 (消除所有斜线)
-    path = EnforceManhattanPathPreserveEndpoints(path, originalStart, originalEnd);
-    
-    return path;
-}
-```
-
-### 4.3 阶梯生成策略 (GenerateStairSegment)
-
-```csharp
-private List<Vector2> GenerateStairSegment(Vector2 start, Vector2 end)
-{
-    // 方案1：L形 - 先水平后垂直
-    Vector2 corner1 = new Vector2(end.x, start.y);
-    if (IsPointInSafeZone(corner1) && IsLineInSafeZone(start, corner1) && IsLineInSafeZone(corner1, end))
-    {
-        return new List<Vector2> { corner1 };
-    }
-    
-    // 方案2：L形 - 先垂直后水平
-    Vector2 corner2 = new Vector2(start.x, end.y);
-    if (IsPointInSafeZone(corner2) && ...)
-    {
-        return new List<Vector2> { corner2 };
-    }
-    
-    // 方案3：Z形 - 水平-垂直-水平
-    float midX = (start.x + end.x) / 2f;
-    Vector2 z1 = new Vector2(midX, start.y);
-    Vector2 z2 = new Vector2(midX, end.y);
-    if (IsPointInSafeZone(z1) && IsPointInSafeZone(z2) && ...)
-    {
-        return new List<Vector2> { z1, z2 };
-    }
-    
-    // 方案4：Z形 - 垂直-水平-垂直
-    // ...
-    
-    // 方案5：偏移绕行 (向外20-60单位)
-    // ...
-}
-```
-
-### 4.4 双层走廊避免重叠
-
-```csharp
-private float CalculateCorridorLayerOffset(Vector2 start, Vector2 end, 
-    List<Rect> existingBounds, bool isMainlyHorizontal)
-{
-    // 检查与已有走廊的重叠数量
-    int overlapCount = 0;
-    foreach (Rect existing in existingBounds)
-    {
-        if (currentBound.Overlaps(existing))
-            overlapCount++;
-    }
-    
-    if (overlapCount == 0) return 0f;
-    
-    float baseOffset = 8f;
-    if (isMainlyHorizontal)
-    {
-        // 水平走廊：交替上下偏移
-        return (overlapCount % 2 == 0) ? baseOffset : -baseOffset;
-    }
-    else
-    {
-        // 垂直走廊：交替左右偏移
-        return (overlapCount % 2 == 0) ? baseOffset : -baseOffset;
-    }
-}
-```
-
-### 4.5 A* 曼哈顿寻路
-
-```csharp
-private List<Vector2Int> AStarManhattanSearch(Vector2Int start, Vector2Int goal)
-{
-    // 只使用4方向邻居（无对角线）
-    foreach (Vector2Int neighborPos in Get4DirectionNeighbors(current.Position))
-    {
-        // 曼哈顿距离作为启发函数
-        neighbor.HCost = ManhattanDistance(neighborPos, goal);
-        // ...
-    }
-}
-
-private List<Vector2Int> Get4DirectionNeighbors(Vector2Int pos)
-{
-    return new List<Vector2Int>
-    {
-        new Vector2Int(pos.x, pos.y + 1),  // 上
-        new Vector2Int(pos.x, pos.y - 1),  // 下
-        new Vector2Int(pos.x - 1, pos.y),  // 左
-        new Vector2Int(pos.x + 1, pos.y)   // 右
-    };
-}
-```
-
-
----
-
-## 5. 单网格生成系统 (GrayboxLevelGenerator)
-
-### 5.1 醉汉游走算法 (Spelunky风格)
+### 4.1 醉汉游走算法 (Spelunky风格)
 
 从顶排随机入口开始，每层水平游走后向下：
 
@@ -361,7 +206,7 @@ private void GenerateCriticalPath()
 }
 ```
 
-### 5.2 洞穴填充 (细胞自动机)
+### 4.2 洞穴填充 (细胞自动机)
 
 ```csharp
 private void DrawCaveFill()
@@ -421,7 +266,7 @@ private bool[,] SmoothCave(bool[,] cave, int width, int height)
 }
 ```
 
-### 5.3 平台生成 (基于跳跃力)
+### 4.3 平台生成 (基于跳跃力)
 
 ```csharp
 private void DrawPlatforms()
@@ -458,9 +303,9 @@ private void DrawPlatforms()
 
 ---
 
-## 6. 数据结构详解
+## 5. 数据结构详解
 
-### 6.1 LevelShape - 关卡形状 (4×4位掩码)
+### 5.1 LevelShape - 关卡形状 (4×4位掩码)
 
 ```csharp
 public class LevelShape
@@ -502,7 +347,7 @@ public class LevelShape
 | CrossShape | 0110,1111,1111,0110 | □■■□ / ■■■■ / ■■■■ / □■■□ |
 | ZShape | 1110,0110,0110,0111 | ■■■□ / □■■□ / □■■□ / □■■■ |
 
-### 6.2 RoomNode - 房间节点
+### 5.2 RoomNode - 房间节点
 
 ```csharp
 public class RoomNode
@@ -540,7 +385,7 @@ public class RoomNode
 }
 ```
 
-### 6.3 RoomType - 房间类型枚举
+### 5.3 RoomType - 房间类型枚举
 
 ```csharp
 public enum RoomType
@@ -558,7 +403,7 @@ public enum RoomType
 }
 ```
 
-### 6.4 Direction - 方向枚举
+### 5.4 Direction - 方向枚举
 
 ```csharp
 public enum Direction
@@ -593,9 +438,9 @@ public static class DirectionExtensions
 
 ---
 
-## 7. Tilemap 层级系统
+## 6. Tilemap 层级系统
 
-### 7.1 六层 Tilemap 结构
+### 6.1 六层 Tilemap 结构
 
 ```csharp
 public class GrayboxTilemapLayers : MonoBehaviour
@@ -611,35 +456,47 @@ public class GrayboxTilemapLayers : MonoBehaviour
 
 | 层级 | 瓦片颜色 | 功能 | Sorting Order |
 | ---- | -------- | ---- | ------------- |
-| WallLayer | 红色 | 4×4网格外围边界，不可穿越 | 0 |
-| FillLayer | 橙色 | 洞穴内部随机填充，细胞自动机生成 | 1 |
-| PlatformLayer | 蓝色 | 可站立平台，基于跳跃力计算高度 | 2 |
+| WallLayer | 黑色 | 4×4网格外围边界，不可穿越 | 0 |
+| FillLayer | 灰色 | 洞穴内部随机填充，细胞自动机生成 | 1 |
+| PlatformLayer | 粉色 | 可站立平台，基于跳跃力计算高度 | 2 |
 | EntranceLayer | 绿色 | 房间入口标记，玩家进入点 | 3 |
-| ExitLayer | 黑色 | 房间出口标记，关卡结束点 | 4 |
+| ExitLayer | 红色 | 房间出口标记，关卡结束点 | 4 |
 | SpecialLayer | 黄色 | Boss/Shop特殊区域标记 | 5 |
 
-### 7.2 GrayboxTileSet - 瓦片配置
+### 6.2 GrayboxTileSet - 瓦片配置
 
 ```csharp
 public class GrayboxTileSet : MonoBehaviour
 {
-    public TileBase RedTile;     // 外围墙壁
-    public TileBase OrangeTile;  // 洞穴填充
-    public TileBase BlueTile;    // 平台
-    public TileBase GreenTile;   // 入口
-    public TileBase BlackTile;   // 出口
-    public TileBase YellowTile;  // 特殊区域
-    public TileBase WhiteTile;   // 预留
-    public TileBase PurpleTile;  // 预留
-    public TileBase PinkTile;    // 预留
+    public TileBase RedTile;     // 红色 - 出口
+    public TileBase YellowTile;  // 黄色 - 特殊区域
+    public TileBase BlueTile;    // 蓝色 - 预留
+    public TileBase GreenTile;   // 绿色 - 入口
+    public TileBase CyanTile;    // 青色 - 预留
+    public TileBase PurpleTile;  // 紫色 - 预留
+    public TileBase PinkTile;    // 粉色 - 平台
+    public TileBase OrangeTile;  // 橙色 - 预留
+    public TileBase BlackTile;   // 黑色 - 墙壁
+    public TileBase WhiteTile;   // 白色 - 表层地板
+    public TileBase GrayTile;    // 灰色 - 洞穴填充
 }
 ```
 
+| 瓦片颜色 | 用途 | 对应层级 |
+| -------- | ---- | -------- |
+| 黑色 (Black) | 外围墙壁 | WallLayer |
+| 灰色 (Gray) | 洞穴随机填充 | FillLayer |
+| 白色 (White) | 表层地板 | FillLayer |
+| 粉色 (Pink) | 可站立平台 | PlatformLayer |
+| 绿色 (Green) | 入口标记 | EntranceLayer |
+| 红色 (Red) | 出口标记 | ExitLayer |
+| 黄色 (Yellow) | Boss/Shop特殊区域 | SpecialLayer |
+
 ---
 
-## 8. 入口/出口智能方向选择
+## 7. 入口/出口智能方向选择
 
-### 8.1 方向选择算法
+### 7.1 方向选择算法
 
 系统根据房间在网格中的位置自动选择最佳入口/出口方向：
 
@@ -673,7 +530,7 @@ private Direction GetBestExitDirection(int gx, int gy, LevelShape shape)
 }
 ```
 
-### 8.2 门户位置计算 (向外延伸)
+### 7.2 门户位置计算 (向外延伸)
 
 ```csharp
 private Vector3 GetPortalPosition(int worldX, int worldY, int roomWidth, int roomHeight,
@@ -702,9 +559,9 @@ private Vector3 GetPortalPosition(int worldX, int worldY, int roomWidth, int roo
 
 ---
 
-## 9. 配置系统
+## 8. 配置系统
 
-### 9.1 GenerationSettings (生成参数)
+### 8.1 GenerationSettings (生成参数)
 
 ```csharp
 [CreateAssetMenu(menuName = "CryptaGeometrica/PCG/GenerationSettings")]
@@ -733,7 +590,7 @@ public class GenerationSettings : ScriptableObject
 }
 ```
 
-### 9.2 DifficultyConfig (难度配置)
+### 8.2 DifficultyConfig (难度配置)
 
 ```csharp
 [CreateAssetMenu(menuName = "CryptaGeometrica/PCG/DifficultyConfig")]
@@ -774,26 +631,17 @@ public class DifficultyConfig : ScriptableObject
 
 ---
 
-## 10. 编辑器工具
+## 9. 编辑器工具
 
-### 10.1 GrayboxLevelGeneratorEditor
-
-自定义 Inspector 功能：
-- 4×4 形状可视化编辑器（点击切换格子）
-- 预设形状快速加载按钮
-- 一键生成/清除关卡
-- 瓦片颜色图例显示
-- 自动创建 Tilemap 层级结构
-
-### 10.2 MultiGridMapEditorWindow
+### 9.1 MultiGridMapEditorWindow
 
 独立编辑器窗口 (`Window/Crypta Geometrica/Multi-Grid Map Editor`)：
+
 - 多网格布局可视化
-- 走廊路径预览
 - 入口/出口标记显示
 - 实时参数调整
 
-### 10.3 Gizmos 调试显示
+### 9.2 Gizmos 调试显示
 
 ```csharp
 private void OnDrawGizmos()
@@ -824,94 +672,62 @@ private void OnDrawGizmos()
         Gizmos.DrawSphere(pos, MarkerSize);
         DrawDirectionalArrow(pos, dir, false);  // 指向外部
     }
-    
-    // 绘制走廊路径 (橙色线段)
-    Gizmos.color = CorridorPathColor;
-    foreach (List<Vector2> path in _corridorPaths)
-    {
-        for (int i = 0; i < path.Count - 1; i++)
-        {
-            Gizmos.DrawLine(start, end);
-        }
-    }
 }
 ```
 
 
 ---
 
-## 11. 使用指南
+## 10. 使用指南
 
-### 11.1 快速开始
+详细的 API 调用方法和代码示例请参考：[MD_ProceduralRoomGeneration_API.md](./MD_ProceduralRoomGeneration_API.md)
 
-```csharp
-// 1. 获取管理器引用
-var multiGrid = GetComponent<MultiGridLevelManager>();
+### 10.1 快速开始
 
-// 2. 配置参数
-multiGrid.GridCount = 4;
-multiGrid.LayoutAreaWidth = 200;
-multiGrid.LayoutAreaHeight = 200;
-multiGrid.BaseSeed = 12345;  // 固定种子可复现
+1. 在场景中添加 `MultiGridLevelManager` 组件
+2. 配置 `GridCount`、`LayoutAreaWidth` 等参数
+3. 调用 `GenerateMultiGridLevel()` 生成关卡
+4. 使用 `GetEntrancePositions()` 获取玩家出生点
 
-// 3. 生成多网格关卡
-multiGrid.GenerateMultiGridLevel();
+### 10.2 单网格生成
 
-// 4. 获取入口出口位置 (用于玩家传送)
-List<Vector3> entrances = multiGrid.GetEntrancePositions();
-List<Vector3> exits = multiGrid.GetExitPositions();
-List<Direction> entranceDirs = multiGrid.GetEntranceDirections();
-List<Direction> exitDirs = multiGrid.GetExitDirections();
-
-// 5. 获取走廊路径 (用于敌人巡逻等)
-List<List<Vector2>> corridors = multiGrid.GetCorridorPaths();
-```
-
-### 11.2 单网格生成
-
-```csharp
-var generator = GetComponent<GrayboxLevelGenerator>();
-
-// 使用预设形状
-generator.GenerateLevel(LevelShapePresets.CrossShape);
-
-// 使用自定义形状
-var customShape = LevelShape.FromString("1100,1110,0111,0011");
-generator.GenerateLevel(customShape);
-```
+1. 使用 `GrayboxLevelGenerator` 组件
+2. 通过 `LevelShape.FromString()` 或预设创建形状
+3. 调用 `GenerateLevel(shape)` 生成
 
 ---
 
-## 12. 扩展建议
+## 11. 扩展建议
 
-### 12.1 待实现功能
+### 11.1 待实现功能
 
+- [ ] 走廊连接系统 (A*寻路 + 曼哈顿路径)
 - [ ] WFC (波函数坍缩) 微观瓦片生成
 - [ ] 物理可达性验证 (A* 路径检测)
 - [ ] 敌人生成点自动计算
 - [ ] 宝箱/道具放置逻辑
 - [ ] 关卡主题切换 (不同瓦片集)
-- [ ] 走廊内部装饰生成
 
-### 12.2 性能优化方向
+### 11.2 性能优化方向
 
 - Tilemap 批处理 (SetTilesBlock)
 - 异步生成 (协程分帧)
 - 对象池复用 RoomNode
-- 走廊路径缓存
 
 ---
 
-## 13. 版本记录
+## 12. 版本记录
 
 | 版本 | 日期 | 说明 |
 | ---- | ---- | ---- |
 | 1.0 | 2026-01-15 | 初始文档 |
 | 2.0 | 2026-01-16 | 完整重写，新增走廊寻路、多网格布局详解 |
+| 2.1 | 2026-01-16 | 移除未实现的走廊寻路系统文档，更新文件结构 |
+| 2.2 | 2026-01-16 | 拆分API文档至 MD_ProceduralRoomGeneration_API.md |
 
 ---
 
-## 14. 参考资料
+## 13. 参考资料
 
 - Spelunky 关卡生成分析 (醉汉游走)
 - Dead Cells 走廊连接系统 (曼哈顿路径)

@@ -184,18 +184,14 @@ namespace CryptaGeometrica.Editor.LevelGeneration
             }
             
             EditorGUILayout.HelpBox(
-                "点击上方按钮自动创建Grid和6层Tilemap:\n" +
-                "- WallLayer (墙壁)\n" +
-                "- FillLayer (填充)\n" +
-                "- PlatformLayer (平台)\n" +
-                "- EntranceLayer (入口)\n" +
-                "- ExitLayer (出口)\n" +
-                "- SpecialLayer (特殊)", 
+                "点击上方按钮自动创建Grid和2层Tilemap:\n" +
+                "- GroundLayer (地面层 - 墙壁和填充合并)\n" +
+                "- PlatformLayer (平台层)", 
                 UnityEditor.MessageType.Info);
         }
         
         /// <summary>
-        /// 创建Tilemap层级结构
+        /// 创建Tilemap层级结构（简化版）
         /// </summary>
         private void CreateTilemapHierarchy()
         {
@@ -203,11 +199,11 @@ namespace CryptaGeometrica.Editor.LevelGeneration
             GameObject gridObj = new GameObject("GrayboxGrid");
             var grid = gridObj.AddComponent<Grid>();
             
-            // 创建6层Tilemap
-            string[] layerNames = { "WallLayer", "FillLayer", "PlatformLayer", "EntranceLayer", "ExitLayer", "SpecialLayer" };
-            int[] sortingOrders = { 0, 1, 2, 3, 4, 5 };
+            // 创建2层Tilemap（简化版）
+            string[] layerNames = { "GroundLayer", "PlatformLayer" };
+            int[] sortingOrders = { 0, 1 };
             
-            Tilemap[] tilemaps = new Tilemap[6];
+            Tilemap[] tilemaps = new Tilemap[2];
             
             for (int i = 0; i < layerNames.Length; i++)
             {
@@ -218,6 +214,9 @@ namespace CryptaGeometrica.Editor.LevelGeneration
                 var renderer = tilemapObj.AddComponent<TilemapRenderer>();
                 renderer.sortingOrder = sortingOrders[i];
                 
+                // 添加 TilemapCollider2D
+                var collider = tilemapObj.AddComponent<TilemapCollider2D>();
+                
                 tilemaps[i] = tilemap;
             }
             
@@ -227,16 +226,12 @@ namespace CryptaGeometrica.Editor.LevelGeneration
                 _generator.TilemapLayers = new GrayboxTilemapLayers();
             }
             
-            _generator.TilemapLayers.WallLayer = tilemaps[0];
-            _generator.TilemapLayers.FillLayer = tilemaps[1];
-            _generator.TilemapLayers.PlatformLayer = tilemaps[2];
-            _generator.TilemapLayers.EntranceLayer = tilemaps[3];
-            _generator.TilemapLayers.ExitLayer = tilemaps[4];
-            _generator.TilemapLayers.SpecialLayer = tilemaps[5];
+            _generator.TilemapLayers.GroundLayer = tilemaps[0];
+            _generator.TilemapLayers.PlatformLayer = tilemaps[1];
             
             EditorUtility.SetDirty(_generator);
             
-            Debug.Log("Tilemap层级结构已创建!");
+            Debug.Log("Tilemap层级结构已创建（简化版：GroundLayer + PlatformLayer）!");
             
             // 选中Grid
             Selection.activeGameObject = gridObj;

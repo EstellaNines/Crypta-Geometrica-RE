@@ -30,9 +30,9 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
         public int WallThickness = 2;
         
         [Header("洞穴生成参数")]
-        [Tooltip("填充密度 (0-1)")]
+        [Tooltip("填充密度 (0-1) - 推荐0.5获得更实的洞穴感")]
         [Range(0f, 0.6f)]
-        public float FillDensity = 0.35f;
+        public float FillDensity = 0.50f;
         
         [Tooltip("平滑迭代次数")]
         [Range(0, 5)]
@@ -42,13 +42,13 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
         public int RandomSeed = 0;
         
         [Header("出入口设置")]
-        [Tooltip("出入口通道宽度")]
-        [Range(4, 8)]
-        public int EntranceWidth = 6;
+        [Tooltip("出入口通道宽度（玩家宽度约1.5瓦片）")]
+        [Range(2, 6)]
+        public int EntranceWidth = 3;
         
-        [Tooltip("出入口通道高度")]
-        [Range(4, 8)]
-        public int EntranceHeight = 5;
+        [Tooltip("出入口通道高度（玩家高度约1.5瓦片）")]
+        [Range(2, 6)]
+        public int EntranceHeight = 3;
         
         [Header("平台设置")]
         [Tooltip("玩家跳跃力")]
@@ -61,6 +61,40 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
         [Tooltip("平台最小间距")]
         [Range(2, 6)]
         public int MinPlatformGap = 3;
+        
+        [Header("逆向阶梯设置")]
+        [Tooltip("阶梯平台间的安全跳跃高度")]
+        [Range(3, 6)]
+        public int StaircaseSafeHeight = 4;
+        
+        [Tooltip("阶梯平台宽度")]
+        [Range(3, 6)]
+        public int StaircasePlatformWidth = 4;
+        
+        [Tooltip("阶梯水平偏移量")]
+        [Range(3, 8)]
+        public int StaircaseHorizontalOffset = 4;
+        
+        [Header("主题设置")]
+        [Tooltip("是否启用主题系统（使用规则瓦片替换灰盒瓦片）")]
+        public bool UseTheme = false;
+        
+        [Tooltip("主题配置数据")]
+        public RoomTheme ThemeConfig;
+        
+        // 当前使用的颜色主题（运行时设置）
+        [HideInInspector]
+        public ThemeColorData CurrentColorTheme;
+        
+        [Header("规则瓦片替换（无主题时使用）")]
+        [Tooltip("是否启用规则瓦片替换（将墙壁、填充、表层替换为规则瓦片）")]
+        public bool UseRuleTile = false;
+        
+        [Tooltip("地面规则瓦片")]
+        public RuleTile GroundRuleTile;
+        
+        [Tooltip("平台规则瓦片")]
+        public RuleTile PlatformRuleTile;
         
         private LevelShape _currentShape;
         private RoomNode[,] _roomGrid;
@@ -449,28 +483,28 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
                     // 北边（上方）- 如果是边缘或相邻无效房间
                     if (gy == 0 || !_currentShape.IsValidCell(gx, gy - 1))
                     {
-                        FillRect(TilemapLayers.WallLayer, TileSet.RedTile,
+                        FillRect(TilemapLayers.WallLayer, TileSet.BlackTile,
                             worldX, worldY + RoomHeight - WallThickness, RoomWidth, WallThickness);
                     }
                     
                     // 南边（下方）
                     if (gy == LevelShape.GridHeight - 1 || !_currentShape.IsValidCell(gx, gy + 1))
                     {
-                        FillRect(TilemapLayers.WallLayer, TileSet.RedTile,
+                        FillRect(TilemapLayers.WallLayer, TileSet.BlackTile,
                             worldX, worldY, RoomWidth, WallThickness);
                     }
                     
                     // 西边（左边）
                     if (gx == 0 || !_currentShape.IsValidCell(gx - 1, gy))
                     {
-                        FillRect(TilemapLayers.WallLayer, TileSet.RedTile,
+                        FillRect(TilemapLayers.WallLayer, TileSet.BlackTile,
                             worldX, worldY, WallThickness, RoomHeight);
                     }
                     
                     // 东边（右边）
                     if (gx == LevelShape.GridWidth - 1 || !_currentShape.IsValidCell(gx + 1, gy))
                     {
-                        FillRect(TilemapLayers.WallLayer, TileSet.RedTile,
+                        FillRect(TilemapLayers.WallLayer, TileSet.BlackTile,
                             worldX + RoomWidth - WallThickness, worldY, WallThickness, RoomHeight);
                     }
                 }
@@ -493,6 +527,60 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
             
             // 第四步：在填充中雕刻曲折的行走通道
             CarveWindingPath();
+            
+            // 第五步：将表层地板替换为白色瓦片
+            ApplySurfaceTiles();
+        }
+        
+        /// <summary>
+        /// 将表层地板（上方是空气，下方是填充物）替换为白色瓦片
+        /// 排除墙壁层已有瓦片的位置
+        /// </summary>
+        private void ApplySurfaceTiles()
+        {
+            var fillTilemap = TilemapLayers.FillLayer;
+            var wallTilemap = TilemapLayers.WallLayer;
+            var whiteTile = TileSet.WhiteTile;
+            
+            if (whiteTile == null) return;
+            
+            // 遍历所有有效房间区域
+            for (int gy = 0; gy < LevelShape.GridHeight; gy++)
+            {
+                for (int gx = 0; gx < LevelShape.GridWidth; gx++)
+                {
+                    if (!_currentShape.IsValidCell(gx, gy)) continue;
+                    
+                    int worldX = gx * RoomWidth;
+                    int worldY = (LevelShape.GridHeight - 1 - gy) * RoomHeight;
+                    
+                    // 扫描房间内的每个瓦片
+                    for (int y = 0; y < RoomHeight; y++)
+                    {
+                        for (int x = 0; x < RoomWidth; x++)
+                        {
+                            int tileX = worldX + x;
+                            int tileY = worldY + y;
+                            Vector3Int pos = new Vector3Int(tileX, tileY, 0);
+                            
+                            // 跳过墙壁层已有瓦片的位置（保持墙壁边框为黑色）
+                            if (wallTilemap.GetTile(pos) != null) continue;
+                            
+                            // 检查当前位置是否有填充瓦片
+                            var currentTile = fillTilemap.GetTile(pos);
+                            if (currentTile == null) continue;
+                            
+                            // 检查上方是否为空（表层条件）
+                            var aboveTile = fillTilemap.GetTile(new Vector3Int(tileX, tileY + 1, 0));
+                            if (aboveTile == null)
+                            {
+                                // 这是表层地板，替换为白色
+                                fillTilemap.SetTile(pos, whiteTile);
+                            }
+                        }
+                    }
+                }
+            }
         }
         
         /// <summary>
@@ -516,25 +604,25 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
                     // 北边
                     if (gy == 0 || !_currentShape.IsValidCell(gx, gy - 1))
                     {
-                        FillRect(TilemapLayers.FillLayer, TileSet.OrangeTile,
+                        FillRect(TilemapLayers.FillLayer, TileSet.GrayTile,
                             worldX, worldY + RoomHeight - baseBoundaryWidth, RoomWidth, baseBoundaryWidth);
                     }
                     // 南边
                     if (gy == LevelShape.GridHeight - 1 || !_currentShape.IsValidCell(gx, gy + 1))
                     {
-                        FillRect(TilemapLayers.FillLayer, TileSet.OrangeTile,
+                        FillRect(TilemapLayers.FillLayer, TileSet.GrayTile,
                             worldX, worldY, RoomWidth, baseBoundaryWidth);
                     }
                     // 西边
                     if (gx == 0 || !_currentShape.IsValidCell(gx - 1, gy))
                     {
-                        FillRect(TilemapLayers.FillLayer, TileSet.OrangeTile,
+                        FillRect(TilemapLayers.FillLayer, TileSet.GrayTile,
                             worldX, worldY, baseBoundaryWidth, RoomHeight);
                     }
                     // 东边
                     if (gx == LevelShape.GridWidth - 1 || !_currentShape.IsValidCell(gx + 1, gy))
                     {
-                        FillRect(TilemapLayers.FillLayer, TileSet.OrangeTile,
+                        FillRect(TilemapLayers.FillLayer, TileSet.GrayTile,
                             worldX + RoomWidth - baseBoundaryWidth, worldY, baseBoundaryWidth, RoomHeight);
                     }
                 }
@@ -688,21 +776,51 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
                         continue; // 跳过无效区域
                     }
                     
-                    // 边缘更容易填充
+                    // === 高斯堆积造山法：概率梯度场 ===
+                    
+                    // 1. 边缘因子
                     int distToEdge = Mathf.Min(x, y, fillWidth - 1 - x, fillHeight - 1 - y);
-                    float edgeFactor = (distToEdge < 6) ? 2.0f : 1.0f;
+                    float edgeFactor = (distToEdge < 6) ? 1.5f : 1.0f;
                     
-                    // 底部更容易填充（形成地面）
-                    if (y < fillHeight / 4)
-                    {
-                        edgeFactor *= 1.8f;
-                    }
+                    // 2. 垂直梯度（重力堆积）：底部概率高，顶部概率低
+                    float heightRatio = (float)y / fillHeight;
+                    float gravityBonus = (1.0f - heightRatio) * 0.35f; // 重力系数0.35
                     
-                    cave[x, y] = _rng.NextDouble() < FillDensity * edgeFactor;
+                    // 3. 水平中心梯度：中间概率高，边缘概率低
+                    float centerX = fillWidth / 2f;
+                    float distToCenter = Mathf.Abs(x - centerX) / centerX;
+                    float centerBonus = (1.0f - distToCenter) * 0.25f; // 聚拢系数0.25
+                    
+                    // 4. 最终概率计算
+                    float finalProbability = FillDensity * edgeFactor + gravityBonus + centerBonus;
+                    cave[x, y] = _rng.NextDouble() < finalProbability;
                 }
             }
             
-            // 细胞自动机平滑 - 多次迭代确保连贯
+            // === 高斯堆积造山法：石笋注入 ===
+            int stalagmiteCount = 2 + _rng.Next(2); // 2-3根石笋
+            for (int i = 0; i < stalagmiteCount; i++)
+            {
+                // 在房间宽度20%~80%范围内随机选X坐标
+                int sx = fillWidth / 5 + _rng.Next(fillWidth * 3 / 5);
+                // 高度为房间高度的40%~70%
+                int maxHeight = fillHeight * 2 / 5 + _rng.Next(fillHeight / 3);
+                // 粗细1-2格
+                int thickness = 1 + _rng.Next(2);
+                
+                // 从底部向上生长
+                for (int dy = 0; dy < maxHeight; dy++)
+                {
+                    for (int dx = -thickness; dx <= thickness; dx++)
+                    {
+                        int px = sx + dx;
+                        if (px >= 0 && px < fillWidth && dy < fillHeight)
+                            cave[px, dy] = true;
+                    }
+                }
+            }
+            
+            // 细胞自动机平滑 - 多次迭代确保连贯（石笋会自然融合）
             for (int i = 0; i < SmoothIterations + 3; i++)
             {
                 cave = SmoothCave(cave, fillWidth, fillHeight);
@@ -728,7 +846,7 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
                         {
                             TilemapLayers.FillLayer.SetTile(
                                 new Vector3Int(worldX, worldY, 0),
-                                TileSet.OrangeTile);
+                                TileSet.GrayTile);
                         }
                     }
                 }
@@ -1026,15 +1144,15 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
                     
                     if (room.Type == RoomType.Start)
                     {
-                        // 入口：选择靠近外墙的最佳方向
-                        EntranceDirection dir = GetBestEntranceDirection(gx, gy);
-                        DrawEntrance(worldX, worldY, centerX, centerY, dir);
+                        // 0号房间（起始房间）只有出口 - 玩家从这里出发
+                        EntranceDirection dir = GetBestExitDirection(gx, gy);
+                        DrawExit(worldX, worldY, centerX, centerY, dir);
                     }
                     else if (room.Type == RoomType.Exit)
                     {
-                        // 出口：选择靠近外墙的最佳方向
-                        EntranceDirection dir = GetBestExitDirection(gx, gy);
-                        DrawExit(worldX, worldY, centerX, centerY, dir);
+                        // 最后一个房间只有入口 - 玩家到达这里结束
+                        EntranceDirection dir = GetBestEntranceDirection(gx, gy);
+                        DrawEntrance(worldX, worldY, centerX, centerY, dir);
                     }
                 }
             }
@@ -1074,14 +1192,13 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
             int entranceY = roomTopY - WallThickness;
             
             // 清除墙壁并绘制入口
-            ClearRect(TilemapLayers.WallLayer, entranceX, entranceY, EntranceWidth, WallThickness + 1);
-            FillRect(TilemapLayers.EntranceLayer, TileSet.GreenTile, entranceX, entranceY, EntranceWidth, WallThickness);
+            ClearRect(TilemapLayers.GroundLayer, entranceX, entranceY, EntranceWidth, WallThickness + 1);
             
             // 清除入口下方区域的填充
-            ClearRect(TilemapLayers.FillLayer, entranceX - 2, entranceY - EntranceHeight - 2, EntranceWidth + 4, EntranceHeight + 4);
+            ClearRect(TilemapLayers.GroundLayer, entranceX - 2, entranceY - EntranceHeight - 2, EntranceWidth + 4, EntranceHeight + 4);
             
             // 入口下方的落脚平台
-            FillRect(TilemapLayers.PlatformLayer, TileSet.BlueTile, entranceX - 1, entranceY - EntranceHeight - 1, EntranceWidth + 2, 1);
+            FillRect(TilemapLayers.PlatformLayer, TileSet.PinkTile, entranceX - 1, entranceY - EntranceHeight - 1, EntranceWidth + 2, 1);
         }
         
         /// <summary>
@@ -1094,14 +1211,13 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
             int exitY = worldY;
             
             // 清除墙壁并绘制出口
-            ClearRect(TilemapLayers.WallLayer, exitX, exitY, EntranceWidth, WallThickness + 1);
-            FillRect(TilemapLayers.ExitLayer, TileSet.BlackTile, exitX, exitY, EntranceWidth, WallThickness);
+            ClearRect(TilemapLayers.GroundLayer, exitX, exitY, EntranceWidth, WallThickness + 1);
             
             // 清除出口上方区域的填充
-            ClearRect(TilemapLayers.FillLayer, exitX - 2, exitY + WallThickness, EntranceWidth + 4, EntranceHeight + 2);
+            ClearRect(TilemapLayers.GroundLayer, exitX - 2, exitY + WallThickness, EntranceWidth + 4, EntranceHeight + 2);
             
             // 出口上方的平台
-            FillRect(TilemapLayers.PlatformLayer, TileSet.BlueTile, exitX - 1, exitY + WallThickness, EntranceWidth + 2, 1);
+            FillRect(TilemapLayers.PlatformLayer, TileSet.PinkTile, exitX - 1, exitY + WallThickness, EntranceWidth + 2, 1);
         }
         
         /// <summary>
@@ -1144,16 +1260,116 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
                         int px = worldX + 2 + _rng.Next(RoomWidth - pw - 4);
                         
                         // 绘制平台
-                        FillRect(TilemapLayers.PlatformLayer, TileSet.BlueTile,
+                        FillRect(TilemapLayers.PlatformLayer, TileSet.PinkTile,
                             px, layerHeight, pw, 1);
                         
                         // 清除平台上方的填充（给玩家站立空间）
-                        ClearRect(TilemapLayers.FillLayer,
+                        ClearRect(TilemapLayers.GroundLayer,
                             px - 1, layerHeight, pw + 2, 4);
                         
                         lastY = layerHeight;
                     }
                 }
+            }
+            
+            // 为所有垂直出口生成阶梯
+            GenerateVerticalExitStaircases();
+        }
+        
+        /// <summary>
+        /// 为所有房间的垂直方向出口生成阶梯，确保玩家能够到达
+        /// </summary>
+        private void GenerateVerticalExitStaircases()
+        {
+            for (int gy = 0; gy < LevelShape.GridHeight; gy++)
+            {
+                for (int gx = 0; gx < LevelShape.GridWidth; gx++)
+                {
+                    if (!_currentShape.IsValidCell(gx, gy)) continue;
+                    
+                    var room = _roomGrid[gx, gy];
+                    int worldX = gx * RoomWidth;
+                    int worldY = (LevelShape.GridHeight - 1 - gy) * RoomHeight;
+                    
+                    // 检查北向出口（需要向上到达）
+                    if (room.HasConnection(Direction.North))
+                    {
+                        GenerateUpwardStaircase(worldX, worldY);
+                    }
+                    
+                    // 检查南向入口（需要确保有安全着陆区域）
+                    if (room.HasConnection(Direction.South))
+                    {
+                        GenerateDownwardPath(worldX, worldY);
+                    }
+                }
+            }
+        }
+        
+        /// <summary>
+        /// 生成通往北向出口的向上阶梯
+        /// </summary>
+        private void GenerateUpwardStaircase(int worldX, int worldY)
+        {
+            // 计算出口踏板Y坐标（北向出口在房间顶部）
+            int exitY = worldY + RoomHeight - WallThickness - 2;
+            int groundY = worldY + WallThickness + 1;
+            
+            // 检查是否需要阶梯
+            int heightDiff = exitY - groundY;
+            if (heightDiff <= StaircaseSafeHeight) return;
+            
+            // 房间边界
+            int roomLeft = worldX + WallThickness + 2;
+            int roomRight = worldX + RoomWidth - WallThickness - StaircasePlatformWidth - 2;
+            int roomCenterX = worldX + RoomWidth / 2;
+            
+            // 当前锚点（从出口开始向下）
+            int currentY = exitY;
+            bool placeLeft = true;
+            
+            // 循环生成阶梯
+            while (currentY - groundY > StaircaseSafeHeight)
+            {
+                int newY = currentY - StaircaseSafeHeight;
+                
+                // 计算X位置（交替偏移，防撞头）
+                int newX = placeLeft 
+                    ? Mathf.Clamp(roomCenterX - StaircaseHorizontalOffset, roomLeft, roomRight)
+                    : Mathf.Clamp(roomCenterX + StaircaseHorizontalOffset, roomLeft, roomRight);
+                
+                // 生成平台
+                FillRect(TilemapLayers.PlatformLayer, TileSet.PinkTile,
+                    newX, newY, StaircasePlatformWidth, 1);
+                
+                // 清除平台上方空间（防止卡头）
+                ClearRect(TilemapLayers.GroundLayer,
+                    newX - 1, newY + 1, StaircasePlatformWidth + 2, 3);
+                
+                currentY = newY;
+                placeLeft = !placeLeft;
+            }
+        }
+        
+        /// <summary>
+        /// 确保南向入口下方有安全着陆区域
+        /// </summary>
+        private void GenerateDownwardPath(int worldX, int worldY)
+        {
+            // 南向入口：玩家从上方掉落进入
+            // 确保入口下方有安全着陆平台
+            
+            int entranceX = worldX + RoomWidth / 2;
+            int entranceY = worldY + WallThickness + 2;
+            
+            // 检查入口下方是否有地面
+            Vector3Int belowPos = new Vector3Int(entranceX, entranceY - 1, 0);
+            if (TilemapLayers.GroundLayer.GetTile(belowPos) == null &&
+                TilemapLayers.PlatformLayer.GetTile(belowPos) == null)
+            {
+                // 生成着陆平台
+                FillRect(TilemapLayers.PlatformLayer, TileSet.PinkTile,
+                    entranceX - 2, entranceY - 1, 5, 1);
             }
         }
         
@@ -1179,18 +1395,13 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
                         // 商店占用整个房间，中央区域为商店空间
                         int shopAreaSize = 8;
                         
-                        // 特殊区域标记(商店区域)
-                        FillRect(TilemapLayers.SpecialLayer, TileSet.YellowTile,
-                            centerX - shopAreaSize / 2, centerY - shopAreaSize / 2, 
-                            shopAreaSize, shopAreaSize);
-                        
                         // 清除商店中央区域的填充
-                        ClearRect(TilemapLayers.FillLayer,
+                        ClearRect(TilemapLayers.GroundLayer,
                             centerX - shopAreaSize / 2 - 1, centerY - shopAreaSize / 2 - 1, 
                             shopAreaSize + 2, shopAreaSize + 2);
                         
                         // 商店地面平台
-                        FillRect(TilemapLayers.PlatformLayer, TileSet.BlueTile,
+                        FillRect(TilemapLayers.PlatformLayer, TileSet.PinkTile,
                             centerX - shopAreaSize / 2 - 1, centerY - shopAreaSize / 2 - 1, 
                             shopAreaSize + 2, 1);
                         
@@ -1202,17 +1413,12 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
                         // Boss房间 - 更大的空间
                         int bossAreaSize = 10;
                         
-                        // 特殊区域标记
-                        FillRect(TilemapLayers.SpecialLayer, TileSet.YellowTile,
-                            centerX - bossAreaSize / 2, centerY - bossAreaSize / 2, 
-                            bossAreaSize, bossAreaSize);
-                        
                         // 清除Boss房间中央区域的填充
-                        ClearRect(TilemapLayers.FillLayer,
+                        ClearRect(TilemapLayers.GroundLayer,
                             worldX + 3, worldY + 3, RoomWidth - 6, RoomHeight - 6);
                         
                         // Boss房间地面
-                        FillRect(TilemapLayers.PlatformLayer, TileSet.BlueTile,
+                        FillRect(TilemapLayers.PlatformLayer, TileSet.PinkTile,
                             worldX + 3, worldY + 3, RoomWidth - 6, 1);
                     }
                 }

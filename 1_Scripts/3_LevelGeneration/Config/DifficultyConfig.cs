@@ -5,7 +5,7 @@ namespace CryptaGeometrica.LevelGeneration
     /// <summary>
     /// 难度配置 - 控制关卡难度和敌人数量
     /// </summary>
-    [CreateAssetMenu(fileName = "DifficultyConfig", menuName = "CryptaGeometrica/PCG/DifficultyConfig")]
+    [CreateAssetMenu(fileName = "DifficultyConfig", menuName = "Crypta Geometrica:RE/PCG程序化关卡/DifficultyConfig")]
     public class DifficultyConfig : ScriptableObject
     {
         [Header("关卡难度递增")]

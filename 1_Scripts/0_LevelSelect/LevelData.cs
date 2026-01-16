@@ -42,7 +42,7 @@ public class ChapterData
 /// <summary>
 /// 关卡配置 ScriptableObject
 /// </summary>
-[CreateAssetMenu(fileName = "LevelConfig", menuName = "Crypta/Level Config")]
+[CreateAssetMenu(fileName = "LevelConfig", menuName = "Crypta Geometrica:RE/关卡配置/Level Config")]
 public class LevelConfig : ScriptableObject
 {
     [Header("章节列表")]
