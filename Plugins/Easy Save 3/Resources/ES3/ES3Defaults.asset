@@ -41,6 +41,11 @@ MonoBehaviour:
     - Cinemachine
     - SingularityGroup.HotReload.Runtime
     - SingularityGroup.HotReload.Runtime.Public
+    - UniTask
+    - UniTask.Addressables
+    - UniTask.DOTween
+    - UniTask.Linq
+    - UniTask.TextMeshPro
     - VInspector
     showAdvancedSettings: 1
   addMgrToSceneAutomatically: 0

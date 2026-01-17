@@ -15,6 +15,7 @@ GameObject:
   - component: {fileID: 8421897102444773830}
   - component: {fileID: 4596020608283490858}
   - component: {fileID: 700922222804000524}
+  - component: {fileID: 4462506187592695482}
   m_Layer: 10
   m_Name: Player
   m_TagString: Player
@@ -192,7 +193,7 @@ MonoBehaviour:
   jumpForce: 8
   groundLayer:
     serializedVersion: 2
-    m_Bits: 64
+    m_Bits: 320
   groundCheckDistance: 0.1
   maxHealth: 3
   knockbackForce: 5
@@ -218,3 +219,20 @@ MonoBehaviour:
   attackDamage: 1
   showGizmos: 1
   gizmoColor: {r: 1, g: 0, b: 0, a: 0.5}
+--- !u!114 &4462506187592695482
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6511764277937736451}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dd7d2032937ac9d4d955dddef7b9f577, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  platformLayer:
+    serializedVersion: 2
+    m_Bits: 256
+  dropDuration: 0.5
+  platformCheckDistance: 0.2

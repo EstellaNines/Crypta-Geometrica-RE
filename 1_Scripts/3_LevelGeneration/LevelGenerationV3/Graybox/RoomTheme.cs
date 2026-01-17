@@ -26,7 +26,7 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
     /// 房间主题配置数据对象
     /// 存储所有颜色主题的规则瓦片，支持随机选择
     /// </summary>
-    [CreateAssetMenu(fileName = "RoomThemeConfig", menuName = "Crypta Geometrica/Room Theme Config")]
+    [CreateAssetMenu(fileName = "RoomThemeConfig", menuName = "Crypta Geometrica:RE/PCG程序化关卡/V3/Room Theme Config")]
     public class RoomTheme : ScriptableObject
     {
         [Header("主题配置")]

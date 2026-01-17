@@ -1,3 +1,6 @@
+// V3版本已废弃，抑制未使用变量警告
+#pragma warning disable CS0219
+
 using UnityEngine;
 using UnityEngine.Tilemaps;
 

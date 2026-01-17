@@ -1,0 +1,97 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e3bfcf0a6eba5994ea0366742cc2f356, type: 3}
+  m_Name: DungeonPipeline
+  m_EditorClassIdentifier: 
+  GridColumns: 4
+  GridRows: 4
+  RoomSize: {x: 16, y: 16}
+  Rules:
+  - rid: 5106256640870973441
+  - rid: 5106256640870973442
+  - rid: 5106256640870973443
+  - rid: 5106256640870973445
+  - rid: 5106256640870973446
+  - rid: 5106256640870973447
+  EnableLogging: 1
+  EnableVisualization: 1
+  references:
+    version: 2
+    RefIds:
+    - rid: 5106256640870973441
+      type: {class: ConstrainedLayoutRule, ns: CryptaGeometrica.LevelGeneration.V4, asm: Assembly-CSharp}
+      data:
+        _ruleName: ConstrainedLayoutRule
+        _enabled: 1
+        _executionOrder: 10
+        _enableLogging: 0
+        _maxSteps: 20
+        _downwardBias: 0.4
+        _sidewaysBias: 0.3
+        _minRooms: 10
+        _maxRetries: 30
+    - rid: 5106256640870973442
+      type: {class: BFSValidationRule, ns: CryptaGeometrica.LevelGeneration.V4, asm: Assembly-CSharp}
+      data:
+        _ruleName: BFSValidationRule
+        _enabled: 1
+        _executionOrder: 20
+        _enableLogging: 0
+        _enableLoopCreation: 0
+        _maxExtraConnections: 1
+    - rid: 5106256640870973443
+      type: {class: RoomRenderRule, ns: CryptaGeometrica.LevelGeneration.V4, asm: Assembly-CSharp}
+      data:
+        _ruleName: RoomRenderRule
+        _enabled: 1
+        _executionOrder: 100
+        _enableLogging: 0
+        _theme: 1
+        _tileConfig: {fileID: 11400000, guid: 833c2fe8d1aa2864d936eaff7c807dd7, type: 2}
+        _backgroundTilemap: {fileID: 0}
+    - rid: 5106256640870973445
+      type: {class: WallRenderRule, ns: CryptaGeometrica.LevelGeneration.V4, asm: Assembly-CSharp}
+      data:
+        _ruleName: WallRenderRule
+        _enabled: 1
+        _executionOrder: 105
+        _enableLogging: 0
+        _theme: 1
+        _wallThickness: 1
+        _tileConfig: {fileID: 11400000, guid: 833c2fe8d1aa2864d936eaff7c807dd7, type: 2}
+        _groundTilemap: {fileID: 0}
+    - rid: 5106256640870973446
+      type: {class: CellularAutomataRule, ns: CryptaGeometrica.LevelGeneration.V4, asm: Assembly-CSharp}
+      data:
+        _ruleName: CellularAutomataRule
+        _enabled: 1
+        _executionOrder: 30
+        _enableLogging: 1
+        _iterations: 3
+        _fillProbability: 0.35
+        _birthLimit: 4
+        _deathLimit: 2
+        _borderThickness: 1
+        _ensureConnectivity: 1
+        _minPathWidth: 3
+        _playerSize: 2
+    - rid: 5106256640870973447
+      type: {class: GroundRenderRule, ns: CryptaGeometrica.LevelGeneration.V4, asm: Assembly-CSharp}
+      data:
+        _ruleName: GroundRenderRule
+        _enabled: 1
+        _executionOrder: 110
+        _enableLogging: 1
+        _theme: 1
+        _batchSize: 1000
+        _tileConfig: {fileID: 11400000, guid: 833c2fe8d1aa2864d936eaff7c807dd7, type: 2}
+        _groundTilemap: {fileID: 0}
