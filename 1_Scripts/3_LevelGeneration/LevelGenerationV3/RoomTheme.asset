@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9d626a2d8004696409fcf394e1d2d946, type: 3}
+  m_Name: RoomTheme
+  m_EditorClassIdentifier: 
+  RedTheme:
+    ColorName: Red
+    DisplayColor: {r: 1, g: 0, b: 0, a: 1}
+    GroundRuleTile: {fileID: 11400000, guid: a060fcf151162ef46b06b797522f4f53, type: 2}
+    PlatformRuleTile: {fileID: 11400000, guid: 6aa2ee5fafcbdb1409ea1dd9d8c841b8, type: 2}
+  BlueTheme:
+    ColorName: Blue
+    DisplayColor: {r: 0.2509804, g: 0.5176471, b: 0.654902, a: 1}
+    GroundRuleTile: {fileID: 11400000, guid: 11b8fe198f81e104d82b83a7ae1c4037, type: 2}
+    PlatformRuleTile: {fileID: 11400000, guid: 95dde7d63267130468fba160e0960010, type: 2}
+  YellowTheme:
+    ColorName: Yellow
+    DisplayColor: {r: 0.9803922, g: 1, b: 0, a: 1}
+    GroundRuleTile: {fileID: 11400000, guid: 5831639fba7f66740aa7e970d935d888, type: 2}
+    PlatformRuleTile: {fileID: 11400000, guid: 946541f68dc23e845b1cff00183be09c, type: 2}

@@ -1723,6 +1723,10 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
             
             Debug.Log($"[垂锚连接] 设置{noFlyZones.Count}个禁飞区");
             
+            // 房间平台计数器（每房间最多3个平台）
+            int maxPlatformsPerRoom = 3;
+            var roomPlatformCount = new Dictionary<(int gx, int gy), int>();
+            
             int maxIterations = 10;
             int iteration = 0;
             int totalAnchorsPlaced = 0;
@@ -1805,12 +1809,28 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
                         
                         if (!hasExisting)
                         {
+                            // 计算平台所属房间
+                            int roomGx = (anchorX - offsetX) / roomWidth;
+                            int roomGy = LevelShape.GridHeight - 1 - (anchorY - offsetY) / roomHeight;
+                            var roomKey = (roomGx, roomGy);
+                            
+                            // 检查房间平台数量限制
+                            if (!roomPlatformCount.ContainsKey(roomKey))
+                                roomPlatformCount[roomKey] = 0;
+                            
+                            if (roomPlatformCount[roomKey] >= maxPlatformsPerRoom)
+                            {
+                                Debug.Log($"[垂锚连接] 房间({roomGx},{roomGy})已达到{maxPlatformsPerRoom}个平台上限，跳过");
+                                continue;
+                            }
+                            
                             // 生成中继平台
                             FillRect(platformTilemap, tile, anchorX, anchorY, anchorWidth, 1);
                             // 清除上方空间
                             ClearRect(groundTilemap, anchorX - 1, anchorY + 1, anchorWidth + 2, 3);
                             
-                            Debug.Log($"[垂锚连接] 迭代{iteration}: 在({anchorX},{anchorY})生成中继平台, 距离上方平台{safeHeight}格");
+                            roomPlatformCount[roomKey]++;
+                            Debug.Log($"[垂锚连接] 迭代{iteration}: 在({anchorX},{anchorY})生成中继平台, 房间({roomGx},{roomGy})已有{roomPlatformCount[roomKey]}个平台");
                             anyFixed = true;
                             totalAnchorsPlaced++;
                         }

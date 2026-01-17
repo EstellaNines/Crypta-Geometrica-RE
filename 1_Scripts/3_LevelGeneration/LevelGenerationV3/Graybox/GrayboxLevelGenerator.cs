@@ -5,8 +5,51 @@ using System.Collections.Generic;
 namespace CryptaGeometrica.LevelGeneration.Graybox
 {
     /// <summary>
+    /// 地形原语枚举：定义每个4x4子格子的地形类型
+    /// 用于基于拓扑原语的多地形分块生成系统
+    /// </summary>
+    public enum TerrainArchetype
+    {
+        /// <summary>实心岩石（非路径区域）</summary>
+        Solid,
+        /// <summary>完全空旷（高空区域）</summary>
+        Open,
+        /// <summary>水平直通隧道</summary>
+        Corridor,
+        /// <summary>垂直竖井</summary>
+        Shaft,
+        /// <summary>拐角：左通 & 下通</summary>
+        Corner_BL,
+        /// <summary>拐角：左通 & 上通</summary>
+        Corner_TL,
+        /// <summary>拐角：右通 & 下通</summary>
+        Corner_BR,
+        /// <summary>拐角：右通 & 上通</summary>
+        Corner_TR,
+        /// <summary>正向阶梯 (/)</summary>
+        Stairs_Pos,
+        /// <summary>负向阶梯 (\)</summary>
+        Stairs_Neg,
+        /// <summary>山体基座 (金字塔底)</summary>
+        Mountain_Base,
+        /// <summary>山峰 (金字塔尖)</summary>
+        Mountain_Peak,
+        /// <summary>稀疏平台 (跳跳乐)</summary>
+        Platforms_Sparse,
+        /// <summary>T型交叉 - 左右下</summary>
+        T_Junction_LRD,
+        /// <summary>T型交叉 - 左右上</summary>
+        T_Junction_LRU,
+        /// <summary>十字交叉</summary>
+        Cross_Junction,
+        /// <summary>着陆区（带平台的垂直入口）</summary>
+        Landing_Zone
+    }
+
+    /// <summary>
     /// 灰盒关卡生成器 - Spelunky风格
     /// 生成4×4整体网格，无房间间隙，只有外围墙壁
+    /// 使用基于拓扑原语的多地形分块生成系统
     /// </summary>
     public class GrayboxLevelGenerator : MonoBehaviour
     {
@@ -100,6 +143,29 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
         private RoomNode[,] _roomGrid;
         private System.Random _rng;
         
+        // === 基于拓扑原语的地形生成系统 ===
+        /// <summary>关键路径节点列表</summary>
+        private List<Vector2Int> _criticalPath = new List<Vector2Int>();
+        /// <summary>地形数据数组：1=墙壁, 0=空气</summary>
+        private int[,] _map;
+        /// <summary>每个网格单元的地形原语类型</summary>
+        private TerrainArchetype[,] _archetypeGrid;
+        
+        // === 掩码保护特征注入：地形模板 ===
+        private static readonly int[][,] FeaturePatterns = new int[][,]
+        {
+            // 形状A: 3x3 实心块（大岛屿核心）
+            new int[,] { {1,1,1}, {1,1,1}, {1,1,1} },
+            // 形状B: 十字型（连接点）
+            new int[,] { {0,1,0}, {1,1,1}, {0,1,0} },
+            // 形状C: U型（口袋地形）
+            new int[,] { {1,0,1}, {1,0,1}, {1,1,1} },
+            // 形状D: L型（拐角）
+            new int[,] { {1,1,0}, {1,0,0}, {1,1,1} },
+            // 形状E: T型（分叉）
+            new int[,] { {1,1,1}, {0,1,0}, {0,1,0} }
+        };
+        
         // 计算属性
         private int TotalWidth => LevelShape.GridWidth * RoomWidth;
         private int TotalHeight => LevelShape.GridHeight * RoomHeight;
@@ -144,8 +210,9 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
             // 绘制入口和出口
             DrawEntranceAndExit();
             
-            // 绘制平台
-            DrawPlatforms();
+            // 注意：平台生成已由拓扑原语系统（TerrainArchetype）内置处理
+            // 如需额外平台，可取消下面注释
+            // DrawPlatforms();
             
             // 绘制特殊区域
             DrawSpecialAreas();
@@ -284,7 +351,9 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
                 }
             }
             
-            // 第三步：设置入口和出口
+            // 第三步：设置入口和出口，保存关键路径
+            _criticalPath = new List<Vector2Int>(path);
+            
             Vector2Int entrance = path[0];
             Vector2Int exit = path[path.Count - 1];
             
@@ -512,25 +581,855 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
         }
         
         /// <summary>
-        /// 绘制洞穴填充 - 整体连贯填充，然后在其中雕刻曲折通道
+        /// 绘制洞穴填充 - 基于拓扑原语的多地形分块生成系统
+        /// 4步流程：拓扑分析 → 原语映射 → 确定性光栅化 → 安全修正
         /// </summary>
         private void DrawCaveFill()
         {
-            // 第一步：在有效房间与无效房间的边界处添加墙壁过渡
-            AddBoundaryWalls();
+            // === 基于拓扑原语的多地形分块生成系统 ===
             
-            // 第二步：有效区域整体生成连贯填充
-            GenerateConnectedCaveFill();
+            // 第一步：初始化地形数据
+            InitializeTerrainMap();
             
-            // 第三步：清除房间连接通道
-            ClearAllConnectionPassages();
+            // 第二步：分析网格拓扑并分配原语类型
+            AnalyzeGridTopology();
             
-            // 第四步：在填充中雕刻曲折的行走通道
-            CarveWindingPath();
+            // 第三步：确定性光栅化 - 填充每个Chunk
+            RasterizeAllChunks();
             
-            // 第五步：将表层地板替换为白色瓦片
+            // 第四步：安全修正 - 确保路径连通性
+            CarvePathConnections();
+            
+            // 第五步：将地形数据渲染到Tilemap
+            RenderTerrainToTilemap();
+            
+            // 第六步：将表层地板替换为白色瓦片
             ApplySurfaceTiles();
         }
+        
+        #region 基于拓扑原语的地形生成系统
+        
+        /// <summary>
+        /// 初始化地形数据数组
+        /// </summary>
+        private void InitializeTerrainMap()
+        {
+            _map = new int[TotalWidth, TotalHeight];
+            _archetypeGrid = new TerrainArchetype[LevelShape.GridWidth, LevelShape.GridHeight];
+            
+            // 初始化所有位置为实心墙壁
+            for (int y = 0; y < TotalHeight; y++)
+            {
+                for (int x = 0; x < TotalWidth; x++)
+                {
+                    _map[x, y] = 1; // 1 = 墙壁
+                }
+            }
+            
+            // 初始化所有网格单元为实心
+            for (int gy = 0; gy < LevelShape.GridHeight; gy++)
+            {
+                for (int gx = 0; gx < LevelShape.GridWidth; gx++)
+                {
+                    _archetypeGrid[gx, gy] = TerrainArchetype.Solid;
+                }
+            }
+        }
+        
+        /// <summary>
+        /// 分析网格拓扑并为每个格子分配TerrainArchetype
+        /// </summary>
+        private void AnalyzeGridTopology()
+        {
+            for (int gy = 0; gy < LevelShape.GridHeight; gy++)
+            {
+                for (int gx = 0; gx < LevelShape.GridWidth; gx++)
+                {
+                    Vector2Int gridPos = new Vector2Int(gx, gy);
+                    _archetypeGrid[gx, gy] = DetermineArchetype(gridPos);
+                }
+            }
+        }
+        
+        /// <summary>
+        /// 根据网格位置的连接关系确定地形原语类型
+        /// </summary>
+        /// <param name="gridPos">网格坐标</param>
+        /// <returns>地形原语类型</returns>
+        private TerrainArchetype DetermineArchetype(Vector2Int gridPos)
+        {
+            int gx = gridPos.x;
+            int gy = gridPos.y;
+            
+            // 检查是否在关键路径上
+            bool isOnPath = _criticalPath.Contains(gridPos);
+            
+            if (!_currentShape.IsValidCell(gx, gy))
+            {
+                return TerrainArchetype.Solid; // 无效区域为实心
+            }
+            
+            if (!isOnPath)
+            {
+                // 非路径区域：根据与路径的相对位置决定类型
+                return DetermineOffPathArchetype(gridPos);
+            }
+            
+            // 路径区域：分析连接方向
+            var room = _roomGrid[gx, gy];
+            bool hasNorth = room.HasConnection(Direction.North);
+            bool hasSouth = room.HasConnection(Direction.South);
+            bool hasEast = room.HasConnection(Direction.East);
+            bool hasWest = room.HasConnection(Direction.West);
+            
+            int horizontalCount = (hasEast ? 1 : 0) + (hasWest ? 1 : 0);
+            int verticalCount = (hasNorth ? 1 : 0) + (hasSouth ? 1 : 0);
+            int totalConnections = horizontalCount + verticalCount;
+            
+            // 十字交叉
+            if (totalConnections == 4)
+            {
+                return TerrainArchetype.Cross_Junction;
+            }
+            
+            // T型交叉
+            if (totalConnections == 3)
+            {
+                if (!hasNorth) return TerrainArchetype.T_Junction_LRD;
+                if (!hasSouth) return TerrainArchetype.T_Junction_LRU;
+                // 其他T型情况使用走廊
+                return TerrainArchetype.Corridor;
+            }
+            
+            // 纯水平连接
+            if (horizontalCount == 2 && verticalCount == 0)
+            {
+                return TerrainArchetype.Corridor;
+            }
+            
+            // 纯垂直连接
+            if (verticalCount == 2 && horizontalCount == 0)
+            {
+                return TerrainArchetype.Shaft;
+            }
+            
+            // 垂直+水平混合（拐角或着陆区）
+            if (verticalCount >= 1 && horizontalCount >= 1)
+            {
+                // 如果有向下的连接，需要着陆区
+                if (hasSouth && (hasEast || hasWest))
+                {
+                    return TerrainArchetype.Landing_Zone;
+                }
+                
+                // 拐角类型
+                if (hasNorth && hasEast) return TerrainArchetype.Corner_TR;
+                if (hasNorth && hasWest) return TerrainArchetype.Corner_TL;
+                if (hasSouth && hasEast) return TerrainArchetype.Corner_BR;
+                if (hasSouth && hasWest) return TerrainArchetype.Corner_BL;
+                
+                // 默认使用着陆区
+                return TerrainArchetype.Landing_Zone;
+            }
+            
+            // 只有单向连接（起点或终点）
+            if (totalConnections == 1)
+            {
+                if (hasNorth || hasSouth)
+                {
+                    return TerrainArchetype.Shaft;
+                }
+                return TerrainArchetype.Corridor;
+            }
+            
+            // 默认使用走廊
+            return TerrainArchetype.Corridor;
+        }
+        
+        /// <summary>
+        /// 确定非路径区域的地形类型
+        /// </summary>
+        private TerrainArchetype DetermineOffPathArchetype(Vector2Int gridPos)
+        {
+            int gx = gridPos.x;
+            int gy = gridPos.y;
+            
+            // 查找最近的路径节点
+            int minPathY = int.MaxValue;
+            int maxPathY = int.MinValue;
+            
+            foreach (var pathNode in _criticalPath)
+            {
+                if (pathNode.y < minPathY) minPathY = pathNode.y;
+                if (pathNode.y > maxPathY) maxPathY = pathNode.y;
+            }
+            
+            // 如果在路径上方（y值更小），使用山峰或开放空间
+            if (gy < minPathY)
+            {
+                return TerrainArchetype.Open;
+            }
+            
+            // 如果在路径下方（y值更大），使用山体基座支撑
+            if (gy > maxPathY)
+            {
+                return TerrainArchetype.Mountain_Base;
+            }
+            
+            // 如果与路径同层但不在路径上
+            // 检查是否有相邻的路径节点
+            bool hasAdjacentPath = false;
+            foreach (var pathNode in _criticalPath)
+            {
+                if (Mathf.Abs(pathNode.x - gx) <= 1 && pathNode.y == gy)
+                {
+                    hasAdjacentPath = true;
+                    break;
+                }
+            }
+            
+            if (hasAdjacentPath)
+            {
+                // 相邻路径的侧室可以使用稀疏平台
+                return _rng.NextDouble() < 0.3 ? TerrainArchetype.Platforms_Sparse : TerrainArchetype.Mountain_Base;
+            }
+            
+            // 远离路径的区域使用实心或山体
+            return TerrainArchetype.Mountain_Base;
+        }
+        
+        /// <summary>
+        /// 确定性光栅化 - 遍历所有Chunk并填充
+        /// </summary>
+        private void RasterizeAllChunks()
+        {
+            for (int gy = 0; gy < LevelShape.GridHeight; gy++)
+            {
+                for (int gx = 0; gx < LevelShape.GridWidth; gx++)
+                {
+                    if (!_currentShape.IsValidCell(gx, gy)) continue;
+                    
+                    TerrainArchetype archetype = _archetypeGrid[gx, gy];
+                    FillChunk(gx, gy, archetype);
+                }
+            }
+        }
+        
+        /// <summary>
+        /// 填充单个Chunk的像素数据
+        /// 使用数学函数（线性、正弦、矩形）确定性填充
+        /// </summary>
+        /// <param name="gx">网格X坐标</param>
+        /// <param name="gy">网格Y坐标</param>
+        /// <param name="archetype">地形原语类型</param>
+        private void FillChunk(int gx, int gy, TerrainArchetype archetype)
+        {
+            // 计算Chunk在世界坐标中的范围
+            int worldX = gx * RoomWidth;
+            int worldY = (LevelShape.GridHeight - 1 - gy) * RoomHeight;
+            
+            int floorHeight = 4;    // 地板厚度
+            int ceilingHeight = 4;  // 天花板厚度
+            int wallWidth = 3;      // 墙壁宽度
+            int passageWidth = 6;   // 通道宽度（玩家约1.5格，需要至少3格）
+            
+            switch (archetype)
+            {
+                case TerrainArchetype.Solid:
+                    // 全部填充为墙壁（已在初始化时完成）
+                    break;
+                    
+                case TerrainArchetype.Open:
+                    // 完全清空（高空区域）
+                    FillChunkRect(worldX, worldY, RoomWidth, RoomHeight, 0);
+                    break;
+                    
+                case TerrainArchetype.Corridor:
+                    // 水平走廊：底部和顶部是墙，中间是空
+                    FillChunkCorridor(worldX, worldY, floorHeight, ceilingHeight);
+                    break;
+                    
+                case TerrainArchetype.Shaft:
+                    // 垂直竖井：左右是墙，中间是空
+                    FillChunkShaft(worldX, worldY, wallWidth);
+                    break;
+                    
+                case TerrainArchetype.Corner_BL:
+                    FillChunkCorner(worldX, worldY, false, true, floorHeight, wallWidth);
+                    break;
+                    
+                case TerrainArchetype.Corner_TL:
+                    FillChunkCorner(worldX, worldY, false, false, floorHeight, wallWidth);
+                    break;
+                    
+                case TerrainArchetype.Corner_BR:
+                    FillChunkCorner(worldX, worldY, true, true, floorHeight, wallWidth);
+                    break;
+                    
+                case TerrainArchetype.Corner_TR:
+                    FillChunkCorner(worldX, worldY, true, false, floorHeight, wallWidth);
+                    break;
+                    
+                case TerrainArchetype.Stairs_Pos:
+                    // 正向阶梯 (/)
+                    FillChunkStairs(worldX, worldY, true);
+                    break;
+                    
+                case TerrainArchetype.Stairs_Neg:
+                    // 负向阶梯 (\)
+                    FillChunkStairs(worldX, worldY, false);
+                    break;
+                    
+                case TerrainArchetype.Mountain_Base:
+                    // 山体基座（金字塔底部）
+                    FillChunkMountainBase(worldX, worldY);
+                    break;
+                    
+                case TerrainArchetype.Mountain_Peak:
+                    // 山峰
+                    FillChunkMountainPeak(worldX, worldY);
+                    break;
+                    
+                case TerrainArchetype.Platforms_Sparse:
+                    // 稀疏平台
+                    FillChunkPlatformsSparse(worldX, worldY);
+                    break;
+                    
+                case TerrainArchetype.T_Junction_LRD:
+                    // T型交叉 - 左右下通
+                    FillChunkTJunction(worldX, worldY, true, true, false, true, floorHeight, wallWidth);
+                    break;
+                    
+                case TerrainArchetype.T_Junction_LRU:
+                    // T型交叉 - 左右上通
+                    FillChunkTJunction(worldX, worldY, true, true, true, false, floorHeight, wallWidth);
+                    break;
+                    
+                case TerrainArchetype.Cross_Junction:
+                    // 十字交叉
+                    FillChunkCrossJunction(worldX, worldY, floorHeight, wallWidth);
+                    break;
+                    
+                case TerrainArchetype.Landing_Zone:
+                    // 着陆区
+                    FillChunkLandingZone(worldX, worldY, floorHeight, wallWidth);
+                    break;
+            }
+        }
+        
+        /// <summary>
+        /// 填充Chunk矩形区域
+        /// </summary>
+        private void FillChunkRect(int x, int y, int width, int height, int value)
+        {
+            for (int dy = 0; dy < height; dy++)
+            {
+                for (int dx = 0; dx < width; dx++)
+                {
+                    int px = x + dx;
+                    int py = y + dy;
+                    if (px >= 0 && px < TotalWidth && py >= 0 && py < TotalHeight)
+                    {
+                        _map[px, py] = value;
+                    }
+                }
+            }
+        }
+        
+        /// <summary>
+        /// 填充水平走廊
+        /// </summary>
+        private void FillChunkCorridor(int worldX, int worldY, int floorHeight, int ceilingHeight)
+        {
+            for (int dy = 0; dy < RoomHeight; dy++)
+            {
+                for (int dx = 0; dx < RoomWidth; dx++)
+                {
+                    int px = worldX + dx;
+                    int py = worldY + dy;
+                    
+                    if (px >= 0 && px < TotalWidth && py >= 0 && py < TotalHeight)
+                    {
+                        // 地板区域
+                        if (dy < floorHeight)
+                        {
+                            _map[px, py] = 1;
+                        }
+                        // 天花板区域
+                        else if (dy >= RoomHeight - ceilingHeight)
+                        {
+                            _map[px, py] = 1;
+                        }
+                        // 中间空区域
+                        else
+                        {
+                            _map[px, py] = 0;
+                        }
+                    }
+                }
+            }
+        }
+        
+        /// <summary>
+        /// 填充垂直竖井
+        /// </summary>
+        private void FillChunkShaft(int worldX, int worldY, int wallWidth)
+        {
+            for (int dy = 0; dy < RoomHeight; dy++)
+            {
+                for (int dx = 0; dx < RoomWidth; dx++)
+                {
+                    int px = worldX + dx;
+                    int py = worldY + dy;
+                    
+                    if (px >= 0 && px < TotalWidth && py >= 0 && py < TotalHeight)
+                    {
+                        // 左墙
+                        if (dx < wallWidth)
+                        {
+                            _map[px, py] = 1;
+                        }
+                        // 右墙
+                        else if (dx >= RoomWidth - wallWidth)
+                        {
+                            _map[px, py] = 1;
+                        }
+                        // 中间空区域
+                        else
+                        {
+                            _map[px, py] = 0;
+                        }
+                    }
+                }
+            }
+        }
+        
+        /// <summary>
+        /// 填充拐角
+        /// </summary>
+        private void FillChunkCorner(int worldX, int worldY, bool rightSide, bool bottomOpen, int floorHeight, int wallWidth)
+        {
+            int centerX = RoomWidth / 2;
+            int centerY = RoomHeight / 2;
+            
+            for (int dy = 0; dy < RoomHeight; dy++)
+            {
+                for (int dx = 0; dx < RoomWidth; dx++)
+                {
+                    int px = worldX + dx;
+                    int py = worldY + dy;
+                    
+                    if (px >= 0 && px < TotalWidth && py >= 0 && py < TotalHeight)
+                    {
+                        bool isWall = true;
+                        
+                        // 水平通道部分
+                        bool inHorizontalPassage = dy >= floorHeight && dy < RoomHeight - floorHeight;
+                        // 垂直通道部分
+                        bool inVerticalPassage = dx >= wallWidth && dx < RoomWidth - wallWidth;
+                        
+                        if (rightSide)
+                        {
+                            // 右侧开口
+                            if (inHorizontalPassage && dx >= centerX - wallWidth)
+                                isWall = false;
+                        }
+                        else
+                        {
+                            // 左侧开口
+                            if (inHorizontalPassage && dx < centerX + wallWidth)
+                                isWall = false;
+                        }
+                        
+                        if (bottomOpen)
+                        {
+                            // 下方开口
+                            if (inVerticalPassage && dy < centerY + floorHeight)
+                                isWall = false;
+                        }
+                        else
+                        {
+                            // 上方开口
+                            if (inVerticalPassage && dy >= centerY - floorHeight)
+                                isWall = false;
+                        }
+                        
+                        _map[px, py] = isWall ? 1 : 0;
+                    }
+                }
+            }
+        }
+        
+        /// <summary>
+        /// 填充阶梯
+        /// </summary>
+        private void FillChunkStairs(int worldX, int worldY, bool positive)
+        {
+            int stepHeight = 2;
+            int stepWidth = RoomWidth / 4;
+            
+            for (int dy = 0; dy < RoomHeight; dy++)
+            {
+                for (int dx = 0; dx < RoomWidth; dx++)
+                {
+                    int px = worldX + dx;
+                    int py = worldY + dy;
+                    
+                    if (px >= 0 && px < TotalWidth && py >= 0 && py < TotalHeight)
+                    {
+                        float slope = positive 
+                            ? (float)dy / RoomHeight 
+                            : 1.0f - (float)dy / RoomHeight;
+                        
+                        float xRatio = (float)dx / RoomWidth;
+                        
+                        // 阶梯线
+                        bool isFloor = xRatio < slope + 0.15f && xRatio > slope - 0.15f && dy < RoomHeight - 3;
+                        // 阶梯下方填充
+                        bool isBelowStairs = positive 
+                            ? (dy < dx * RoomHeight / RoomWidth)
+                            : (dy < (RoomWidth - dx) * RoomHeight / RoomWidth);
+                        
+                        _map[px, py] = (isFloor || isBelowStairs) ? 1 : 0;
+                    }
+                }
+            }
+        }
+        
+        /// <summary>
+        /// 填充山体基座
+        /// </summary>
+        private void FillChunkMountainBase(int worldX, int worldY)
+        {
+            int centerX = RoomWidth / 2;
+            
+            for (int dy = 0; dy < RoomHeight; dy++)
+            {
+                for (int dx = 0; dx < RoomWidth; dx++)
+                {
+                    int px = worldX + dx;
+                    int py = worldY + dy;
+                    
+                    if (px >= 0 && px < TotalWidth && py >= 0 && py < TotalHeight)
+                    {
+                        // 金字塔形状：距离中心越远，高度越低
+                        int distFromCenter = Mathf.Abs(dx - centerX);
+                        int pyramidHeight = RoomHeight - distFromCenter;
+                        
+                        // 底部实心，顶部逐渐变窄
+                        bool isWall = dy < pyramidHeight;
+                        _map[px, py] = isWall ? 1 : 0;
+                    }
+                }
+            }
+        }
+        
+        /// <summary>
+        /// 填充山峰
+        /// </summary>
+        private void FillChunkMountainPeak(int worldX, int worldY)
+        {
+            int centerX = RoomWidth / 2;
+            int peakHeight = RoomHeight * 2 / 3;
+            
+            for (int dy = 0; dy < RoomHeight; dy++)
+            {
+                for (int dx = 0; dx < RoomWidth; dx++)
+                {
+                    int px = worldX + dx;
+                    int py = worldY + dy;
+                    
+                    if (px >= 0 && px < TotalWidth && py >= 0 && py < TotalHeight)
+                    {
+                        // 倒置金字塔（尖朝上）
+                        int distFromCenter = Mathf.Abs(dx - centerX);
+                        int threshold = (RoomHeight - dy) * RoomWidth / (2 * peakHeight);
+                        
+                        bool isWall = distFromCenter < threshold && dy < peakHeight;
+                        _map[px, py] = isWall ? 1 : 0;
+                    }
+                }
+            }
+        }
+        
+        /// <summary>
+        /// 填充稀疏平台
+        /// </summary>
+        private void FillChunkPlatformsSparse(int worldX, int worldY)
+        {
+            // 清空区域
+            FillChunkRect(worldX, worldY, RoomWidth, RoomHeight, 0);
+            
+            // 添加边框
+            int borderWidth = 2;
+            for (int dy = 0; dy < RoomHeight; dy++)
+            {
+                for (int dx = 0; dx < RoomWidth; dx++)
+                {
+                    if (dx < borderWidth || dx >= RoomWidth - borderWidth ||
+                        dy < borderWidth || dy >= RoomHeight - borderWidth)
+                    {
+                        int px = worldX + dx;
+                        int py = worldY + dy;
+                        if (px >= 0 && px < TotalWidth && py >= 0 && py < TotalHeight)
+                        {
+                            _map[px, py] = 1;
+                        }
+                    }
+                }
+            }
+            
+            // 添加稀疏平台（确保间距小于4格）
+            int[] platformYs = { 4, 8, 12 };
+            int platformWidth = 4;
+            
+            foreach (int relY in platformYs)
+            {
+                if (relY >= RoomHeight - 3) continue;
+                
+                // 随机水平位置
+                int relX = 3 + _rng.Next(RoomWidth - platformWidth - 6);
+                
+                for (int dx = 0; dx < platformWidth; dx++)
+                {
+                    int px = worldX + relX + dx;
+                    int py = worldY + relY;
+                    if (px >= 0 && px < TotalWidth && py >= 0 && py < TotalHeight)
+                    {
+                        _map[px, py] = 1;
+                    }
+                }
+            }
+        }
+        
+        /// <summary>
+        /// 填充T型交叉
+        /// </summary>
+        private void FillChunkTJunction(int worldX, int worldY, bool left, bool right, bool up, bool down, int floorHeight, int wallWidth)
+        {
+            int centerX = RoomWidth / 2;
+            int centerY = RoomHeight / 2;
+            int passageHalfWidth = (RoomWidth - 2 * wallWidth) / 2;
+            int passageHalfHeight = (RoomHeight - 2 * floorHeight) / 2;
+            
+            for (int dy = 0; dy < RoomHeight; dy++)
+            {
+                for (int dx = 0; dx < RoomWidth; dx++)
+                {
+                    int px = worldX + dx;
+                    int py = worldY + dy;
+                    
+                    if (px >= 0 && px < TotalWidth && py >= 0 && py < TotalHeight)
+                    {
+                        bool isWall = true;
+                        
+                        // 水平通道
+                        bool inHorizontalPassage = dy >= floorHeight && dy < RoomHeight - floorHeight;
+                        // 垂直通道
+                        bool inVerticalPassage = dx >= wallWidth && dx < RoomWidth - wallWidth;
+                        
+                        // 中心区域
+                        if (inHorizontalPassage && inVerticalPassage)
+                        {
+                            isWall = false;
+                        }
+                        
+                        // 左侧通道
+                        if (left && inHorizontalPassage && dx < centerX)
+                        {
+                            isWall = false;
+                        }
+                        
+                        // 右侧通道
+                        if (right && inHorizontalPassage && dx >= centerX)
+                        {
+                            isWall = false;
+                        }
+                        
+                        // 上方通道
+                        if (up && inVerticalPassage && dy >= centerY)
+                        {
+                            isWall = false;
+                        }
+                        
+                        // 下方通道
+                        if (down && inVerticalPassage && dy < centerY)
+                        {
+                            isWall = false;
+                        }
+                        
+                        _map[px, py] = isWall ? 1 : 0;
+                    }
+                }
+            }
+        }
+        
+        /// <summary>
+        /// 填充十字交叉
+        /// </summary>
+        private void FillChunkCrossJunction(int worldX, int worldY, int floorHeight, int wallWidth)
+        {
+            FillChunkTJunction(worldX, worldY, true, true, true, true, floorHeight, wallWidth);
+        }
+        
+        /// <summary>
+        /// 填充着陆区
+        /// </summary>
+        private void FillChunkLandingZone(int worldX, int worldY, int floorHeight, int wallWidth)
+        {
+            int centerX = RoomWidth / 2;
+            int platformY = floorHeight + 2;
+            int platformWidth = RoomWidth - 2 * wallWidth - 4;
+            
+            // 先清空区域
+            FillChunkRect(worldX, worldY, RoomWidth, RoomHeight, 0);
+            
+            // 添加边框墙壁
+            for (int dy = 0; dy < RoomHeight; dy++)
+            {
+                for (int dx = 0; dx < RoomWidth; dx++)
+                {
+                    int px = worldX + dx;
+                    int py = worldY + dy;
+                    
+                    if (px >= 0 && px < TotalWidth && py >= 0 && py < TotalHeight)
+                    {
+                        // 左右墙壁（只在非通道区域）
+                        if (dx < wallWidth || dx >= RoomWidth - wallWidth)
+                        {
+                            // 保留水平通道入口
+                            if (dy < floorHeight || dy >= RoomHeight - floorHeight)
+                            {
+                                _map[px, py] = 1;
+                            }
+                        }
+                        
+                        // 底部地板
+                        if (dy < floorHeight)
+                        {
+                            _map[px, py] = 1;
+                        }
+                    }
+                }
+            }
+            
+            // 添加着陆平台（在垂直通道中间）
+            for (int dx = 0; dx < platformWidth; dx++)
+            {
+                int px = worldX + wallWidth + 2 + dx;
+                int py = worldY + RoomHeight / 2;
+                if (px >= 0 && px < TotalWidth && py >= 0 && py < TotalHeight)
+                {
+                    _map[px, py] = 1;
+                }
+            }
+        }
+        
+        /// <summary>
+        /// 安全修正 - 在关键路径连接处强制清除通道
+        /// 确保玩家（1.5x1.5尺寸）可以通过
+        /// </summary>
+        private void CarvePathConnections()
+        {
+            int carveWidth = 4; // 雕刻宽度，确保玩家可通过
+            
+            // 遍历关键路径，在相邻节点之间雕刻连接通道
+            for (int i = 0; i < _criticalPath.Count; i++)
+            {
+                Vector2Int current = _criticalPath[i];
+                var room = _roomGrid[current.x, current.y];
+                
+                int worldX = current.x * RoomWidth;
+                int worldY = (LevelShape.GridHeight - 1 - current.y) * RoomHeight;
+                int centerX = worldX + RoomWidth / 2;
+                int centerY = worldY + RoomHeight / 2;
+                
+                // 清除房间中心区域
+                CarveRect(centerX - carveWidth, centerY - carveWidth, carveWidth * 2, carveWidth * 2);
+                
+                // 处理每个方向的连接
+                if (room.HasConnection(Direction.East))
+                {
+                    // 向东的连接
+                    int exitX = worldX + RoomWidth - carveWidth;
+                    CarveRect(exitX, centerY - carveWidth / 2, carveWidth * 2, carveWidth);
+                }
+                
+                if (room.HasConnection(Direction.West))
+                {
+                    // 向西的连接
+                    int exitX = worldX - carveWidth;
+                    CarveRect(exitX, centerY - carveWidth / 2, carveWidth * 2, carveWidth);
+                }
+                
+                if (room.HasConnection(Direction.South))
+                {
+                    // 向南的连接（Unity中Y向上，所以South是Y减小）
+                    int exitY = worldY - carveWidth;
+                    CarveRect(centerX - carveWidth / 2, exitY, carveWidth, carveWidth * 2);
+                }
+                
+                if (room.HasConnection(Direction.North))
+                {
+                    // 向北的连接
+                    int exitY = worldY + RoomHeight - carveWidth;
+                    CarveRect(centerX - carveWidth / 2, exitY, carveWidth, carveWidth * 2);
+                }
+            }
+        }
+        
+        /// <summary>
+        /// 在地形数据中雕刻矩形空洞
+        /// </summary>
+        private void CarveRect(int x, int y, int width, int height)
+        {
+            for (int dy = 0; dy < height; dy++)
+            {
+                for (int dx = 0; dx < width; dx++)
+                {
+                    int px = x + dx;
+                    int py = y + dy;
+                    if (px >= 0 && px < TotalWidth && py >= 0 && py < TotalHeight)
+                    {
+                        _map[px, py] = 0;
+                    }
+                }
+            }
+        }
+        
+        /// <summary>
+        /// 将地形数据渲染到Tilemap
+        /// </summary>
+        private void RenderTerrainToTilemap()
+        {
+            for (int y = 0; y < TotalHeight; y++)
+            {
+                for (int x = 0; x < TotalWidth; x++)
+                {
+                    // 检查是否在有效房间区域内
+                    int gx = x / RoomWidth;
+                    int gy = LevelShape.GridHeight - 1 - y / RoomHeight;
+                    
+                    if (gx >= 0 && gx < LevelShape.GridWidth && 
+                        gy >= 0 && gy < LevelShape.GridHeight &&
+                        _currentShape.IsValidCell(gx, gy))
+                    {
+                        Vector3Int pos = new Vector3Int(x, y, 0);
+                        
+                        if (_map[x, y] == 1)
+                        {
+                            TilemapLayers.FillLayer.SetTile(pos, TileSet.GrayTile);
+                        }
+                        else
+                        {
+                            TilemapLayers.FillLayer.SetTile(pos, null);
+                        }
+                    }
+                }
+            }
+        }
+        
+        #endregion
         
         /// <summary>
         /// 将表层地板（上方是空气，下方是填充物）替换为白色瓦片
@@ -583,151 +1482,15 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
             }
         }
         
-        /// <summary>
-        /// 在有效房间边界处添加自然洞穴墙壁
-        /// </summary>
-        private void AddBoundaryWalls()
-        {
-            // 先为所有有效房间填充完整的边界基础层
-            int baseBoundaryWidth = 12; // 基础边界厚度
-            
-            for (int gy = 0; gy < LevelShape.GridHeight; gy++)
-            {
-                for (int gx = 0; gx < LevelShape.GridWidth; gx++)
-                {
-                    if (!_currentShape.IsValidCell(gx, gy)) continue;
-                    
-                    int worldX = gx * RoomWidth;
-                    int worldY = (LevelShape.GridHeight - 1 - gy) * RoomHeight;
-                    
-                    // 为所有边界方向填充基础层
-                    // 北边
-                    if (gy == 0 || !_currentShape.IsValidCell(gx, gy - 1))
-                    {
-                        FillRect(TilemapLayers.FillLayer, TileSet.GrayTile,
-                            worldX, worldY + RoomHeight - baseBoundaryWidth, RoomWidth, baseBoundaryWidth);
-                    }
-                    // 南边
-                    if (gy == LevelShape.GridHeight - 1 || !_currentShape.IsValidCell(gx, gy + 1))
-                    {
-                        FillRect(TilemapLayers.FillLayer, TileSet.GrayTile,
-                            worldX, worldY, RoomWidth, baseBoundaryWidth);
-                    }
-                    // 西边
-                    if (gx == 0 || !_currentShape.IsValidCell(gx - 1, gy))
-                    {
-                        FillRect(TilemapLayers.FillLayer, TileSet.GrayTile,
-                            worldX, worldY, baseBoundaryWidth, RoomHeight);
-                    }
-                    // 东边
-                    if (gx == LevelShape.GridWidth - 1 || !_currentShape.IsValidCell(gx + 1, gy))
-                    {
-                        FillRect(TilemapLayers.FillLayer, TileSet.GrayTile,
-                            worldX + RoomWidth - baseBoundaryWidth, worldY, baseBoundaryWidth, RoomHeight);
-                    }
-                }
-            }
-            
-            // 然后在边界上雕刻不规则的洞穴边缘
-            CarveBoundaryEdges();
-        }
+        #region 旧版洞穴生成方法（已废弃，保留供参考）
+        // 以下方法已被基于拓扑原语的多地形分块生成系统替代
+        // 如需恢复旧版行为，可取消注释并修改 DrawCaveFill() 方法
         
+        /*
         /// <summary>
-        /// 在边界上雕刻不规则的洞穴边缘
+        /// [已废弃] 生成整体连贯的洞穴填充
         /// </summary>
-        private void CarveBoundaryEdges()
-        {
-            int carveDepth = 6; // 雕刻深度
-            int carveVariation = 4; // 变化范围
-            
-            for (int gy = 0; gy < LevelShape.GridHeight; gy++)
-            {
-                for (int gx = 0; gx < LevelShape.GridWidth; gx++)
-                {
-                    if (!_currentShape.IsValidCell(gx, gy)) continue;
-                    
-                    int worldX = gx * RoomWidth;
-                    int worldY = (LevelShape.GridHeight - 1 - gy) * RoomHeight;
-                    int centerX = worldX + RoomWidth / 2;
-                    int centerY = worldY + RoomHeight / 2;
-                    
-                    // 在边界内侧雕刻不规则边缘
-                    // 北边
-                    if (gy == 0 || !_currentShape.IsValidCell(gx, gy - 1))
-                    {
-                        int baseY = worldY + RoomHeight - 12;
-                        for (int x = 0; x < RoomWidth; x++)
-                        {
-                            int depth = carveDepth + _rng.Next(-carveVariation, carveVariation + 1);
-                            // 使用正弦波形创建更自然的边缘
-                            depth += (int)(Mathf.Sin(x * 0.3f) * 3);
-                            for (int y = 0; y < depth; y++)
-                            {
-                                ClearTile(TilemapLayers.FillLayer, worldX + x, baseY + y);
-                            }
-                        }
-                    }
-                    
-                    // 南边
-                    if (gy == LevelShape.GridHeight - 1 || !_currentShape.IsValidCell(gx, gy + 1))
-                    {
-                        int baseY = worldY + 12;
-                        for (int x = 0; x < RoomWidth; x++)
-                        {
-                            int depth = carveDepth + _rng.Next(-carveVariation, carveVariation + 1);
-                            depth += (int)(Mathf.Sin(x * 0.3f) * 3);
-                            for (int y = 0; y < depth; y++)
-                            {
-                                ClearTile(TilemapLayers.FillLayer, worldX + x, baseY - y - 1);
-                            }
-                        }
-                    }
-                    
-                    // 西边
-                    if (gx == 0 || !_currentShape.IsValidCell(gx - 1, gy))
-                    {
-                        int baseX = worldX + 12;
-                        for (int y = 0; y < RoomHeight; y++)
-                        {
-                            int depth = carveDepth + _rng.Next(-carveVariation, carveVariation + 1);
-                            depth += (int)(Mathf.Sin(y * 0.3f) * 3);
-                            for (int x = 0; x < depth; x++)
-                            {
-                                ClearTile(TilemapLayers.FillLayer, baseX - x - 1, worldY + y);
-                            }
-                        }
-                    }
-                    
-                    // 东边
-                    if (gx == LevelShape.GridWidth - 1 || !_currentShape.IsValidCell(gx + 1, gy))
-                    {
-                        int baseX = worldX + RoomWidth - 12;
-                        for (int y = 0; y < RoomHeight; y++)
-                        {
-                            int depth = carveDepth + _rng.Next(-carveVariation, carveVariation + 1);
-                            depth += (int)(Mathf.Sin(y * 0.3f) * 3);
-                            for (int x = 0; x < depth; x++)
-                            {
-                                ClearTile(TilemapLayers.FillLayer, baseX + x, worldY + y);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
-        /// <summary>
-        /// 清除单个瓦片
-        /// </summary>
-        private void ClearTile(Tilemap tilemap, int x, int y)
-        {
-            tilemap.SetTile(new Vector3Int(x, y, 0), null);
-        }
-        
-        /// <summary>
-        /// 生成整体连贯的洞穴填充
-        /// </summary>
-        private void GenerateConnectedCaveFill()
+        private void GenerateConnectedCaveFill_Legacy()
         {
             // 计算有效区域的边界
             int minX = int.MaxValue, maxX = int.MinValue;
@@ -820,7 +1583,10 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
                 }
             }
             
-            // 细胞自动机平滑 - 多次迭代确保连贯（石笋会自然融合）
+            // === 掩码保护特征注入 ===
+            InjectTerrainFeatures(cave, fillWidth, fillHeight, minX, minY);
+            
+            // 细胞自动机平滑 - 多次迭代确保连贯（石笋和特征会自然融合）
             for (int i = 0; i < SmoothIterations + 3; i++)
             {
                 cave = SmoothCave(cave, fillWidth, fillHeight);
@@ -1084,6 +1850,159 @@ namespace CryptaGeometrica.LevelGeneration.Graybox
             }
             
             return count;
+        }
+        
+        /// <summary>
+        /// 掩码保护特征注入：在非路径区域注入地形特征，减少中央空洞
+        /// </summary>
+        /// <param name="cave">洞穴数组</param>
+        /// <param name="width">宽度</param>
+        /// <param name="height">高度</param>
+        /// <param name="offsetX">世界坐标偏移X</param>
+        /// <param name="offsetY">世界坐标偏移Y</param>
+        private void InjectTerrainFeatures(bool[,] cave, int width, int height, int offsetX, int offsetY)
+        {
+            // 1. 构建预测安全区（房间中心 + 连接通道）
+            HashSet<Vector2Int> safeZone = new HashSet<Vector2Int>();
+            
+            for (int gy = 0; gy < LevelShape.GridHeight; gy++)
+            {
+                for (int gx = 0; gx < LevelShape.GridWidth; gx++)
+                {
+                    if (!_currentShape.IsValidCell(gx, gy)) continue;
+                    
+                    var room = _roomGrid[gx, gy];
+                    int roomWorldX = gx * RoomWidth;
+                    int roomWorldY = (LevelShape.GridHeight - 1 - gy) * RoomHeight;
+                    
+                    // 转换为cave数组坐标
+                    int roomLocalX = roomWorldX - offsetX;
+                    int roomLocalY = roomWorldY - offsetY;
+                    int centerX = roomLocalX + RoomWidth / 2;
+                    int centerY = roomLocalY + RoomHeight / 2;
+                    
+                    // 房间中心安全区（6x6范围）
+                    for (int dx = -3; dx <= 3; dx++)
+                    {
+                        for (int dy = -3; dy <= 3; dy++)
+                        {
+                            safeZone.Add(new Vector2Int(centerX + dx, centerY + dy));
+                        }
+                    }
+                    
+                    // 连接方向通道安全区
+                    int pathHalfWidth = 3;
+                    if (room.HasConnection(Direction.North))
+                    {
+                        for (int dy = 0; dy < RoomHeight / 2; dy++)
+                            for (int dx = -pathHalfWidth; dx <= pathHalfWidth; dx++)
+                                safeZone.Add(new Vector2Int(centerX + dx, centerY + dy));
+                    }
+                    if (room.HasConnection(Direction.South))
+                    {
+                        for (int dy = 0; dy < RoomHeight / 2; dy++)
+                            for (int dx = -pathHalfWidth; dx <= pathHalfWidth; dx++)
+                                safeZone.Add(new Vector2Int(centerX + dx, centerY - dy));
+                    }
+                    if (room.HasConnection(Direction.East))
+                    {
+                        for (int dx = 0; dx < RoomWidth / 2; dx++)
+                            for (int dy = -pathHalfWidth; dy <= pathHalfWidth; dy++)
+                                safeZone.Add(new Vector2Int(centerX + dx, centerY + dy));
+                    }
+                    if (room.HasConnection(Direction.West))
+                    {
+                        for (int dx = 0; dx < RoomWidth / 2; dx++)
+                            for (int dy = -pathHalfWidth; dy <= pathHalfWidth; dy++)
+                                safeZone.Add(new Vector2Int(centerX - dx, centerY + dy));
+                    }
+                }
+            }
+            
+            // 2. 在非安全区注入特征（步长4，避免过密）
+            for (int y = 4; y < height - 4; y += 4)
+            {
+                for (int x = 4; x < width - 4; x += 4)
+                {
+                    Vector2Int pos = new Vector2Int(x, y);
+                    
+                    // 如果在安全区内，跳过
+                    if (safeZone.Contains(pos)) continue;
+                    
+                    // 40%概率注入特征
+                    if (_rng.NextDouble() < 0.4)
+                    {
+                        StampPattern(cave, x, y, width, height);
+                    }
+                }
+            }
+        }
+        
+        /// <summary>
+        /// 将地形模板印章到洞穴数组
+        /// </summary>
+        private void StampPattern(bool[,] cave, int cx, int cy, int width, int height)
+        {
+            // 随机选择一个模板
+            int patternIndex = _rng.Next(FeaturePatterns.Length);
+            int[,] pattern = FeaturePatterns[patternIndex];
+            
+            int size = 3; // 模板大小3x3
+            
+            for (int py = 0; py < size; py++)
+            {
+                for (int px = 0; px < size; px++)
+                {
+                    if (pattern[py, px] == 1)
+                    {
+                        int tx = cx + px - 1; // 居中放置
+                        int ty = cy + py - 1;
+                        
+                        // 边界检查
+                        if (tx >= 1 && tx < width - 1 && ty >= 1 && ty < height - 1)
+                        {
+                            cave[tx, ty] = true;
+                        }
+                    }
+                }
+            }
+        }
+        */
+        #endregion
+        
+        /// <summary>
+        /// 清除单个房间连接处的填充（保留供特殊区域使用）
+        /// </summary>
+        private void ClearRoomConnectionPassages(int worldX, int worldY, RoomNode room)
+        {
+            int passageWidth = 8;
+            int centerX = worldX + RoomWidth / 2;
+            int centerY = worldY + RoomHeight / 2;
+            
+            if (room.HasConnection(Direction.East))
+            {
+                ClearRect(TilemapLayers.FillLayer,
+                    worldX + RoomWidth - passageWidth, centerY - passageWidth / 2,
+                    passageWidth * 2, passageWidth);
+            }
+            if (room.HasConnection(Direction.West))
+            {
+                ClearRect(TilemapLayers.FillLayer,
+                    worldX - passageWidth, centerY - passageWidth / 2,
+                    passageWidth * 2, passageWidth);
+            }
+            if (room.HasConnection(Direction.South))
+            {
+                ClearRect(TilemapLayers.FillLayer,
+                    centerX - passageWidth / 2, worldY - passageWidth,
+                    passageWidth, passageWidth * 2);
+            }
+            if (room.HasConnection(Direction.North))
+            {
+                ClearRect(TilemapLayers.FillLayer,
+                    centerX - passageWidth / 2, worldY + RoomHeight - passageWidth,
+                    passageWidth, passageWidth * 2);
+            }
         }
         
         /// <summary>
