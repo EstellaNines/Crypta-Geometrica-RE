@@ -1,154 +1,241 @@
-# Level Generation V3 - Topology-Based Terrain System
+# 🏰 Level Generation V4 - Multi-Room PCG System
 
-## 概述
+<p align="center">
+  <img src="https://img.shields.io/badge/Unity-2022.3+-blue?logo=unity" alt="Unity Version">
+  <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
+  <img src="https://img.shields.io/badge/Status-Completed-brightgreen" alt="Status">
+</p>
 
-Level Generation V3 是基于**拓扑原语的多地形分块生成系统**，采用结构化的4x4网格分块方法，替代了原有的高斯堆积造山法和细胞自动机平滑算法。
-
----
-
-## 核心架构
-
-```
-GrayboxLevelGenerator (房间生成器)
-        ↓
-MultiGridLevelManager (多房间生成器)
-```
+A **rule-based procedural content generation (PCG) system** for Unity that creates multi-room dungeon layouts with natural cave terrain. Built with a modular architecture supporting async generation and hot-swappable rules.
 
 ---
 
-## GrayboxLevelGenerator 功能列表
+## ✨ Features
 
-### ✅ 已实现功能
+| Feature | Description |
+|---------|-------------|
+| 🧩 **Rule Pipeline** | Modular `IGeneratorRule` interface for pluggable generation rules |
+| 📋 **Blackboard Pattern** | `DungeonContext` enables data sharing between rules |
+| ⚡ **Async Generation** | UniTask-powered async execution with cancellation support |
+| 🗺️ **Macro-Micro Architecture** | Separate room layout (macro) and terrain detail (micro) layers |
+| 🎨 **Multi-Theme Support** | Configurable tile themes (Blue, Red, Yellow) |
+| 🔧 **Editor Integration** | Odin Inspector for visual configuration |
 
-| 功能模块 | 描述 | 状态 |
-|---------|------|------|
-| **4x4网格系统** | 将关卡划分为4x4的Chunk网格 | ✅ |
-| **关键路径生成** | 使用醉汉游走算法生成玩家必经路径 | ✅ |
-| **TerrainArchetype 枚举** | 17种地形原语类型定义 | ✅ |
-| **拓扑分析** | 分析每个Chunk的连接关系 | ✅ |
-| **确定性光栅化** | 使用数学函数填充地形 | ✅ |
-| **安全修正** | 确保路径连通性 | ✅ |
-| **出入口系统** | Start/Exit 房间标记和渲染 | ✅ |
-| **特殊区域** | Shop/Boss 房间支持 | ✅ |
-| **Tilemap渲染** | 多层Tilemap输出 | ✅ |
+---
 
-### TerrainArchetype 类型
+## 🎮 Demo
 
+### Generated Dungeon Example
+```
+┌──────────┐     ┌──────────┐
+│  START   │─────│  ROOM 2  │
+│ (Entry)  │     │          │
+└────┬─────┘     └────┬─────┘
+     │                │
+┌────┴─────┐     ┌────┴─────┐
+│  ROOM 3  │─────│  ROOM 4  │
+│          │     │          │
+└────┬─────┘     └──────────┘
+     │
+┌────┴─────┐
+│   END    │
+│  (Exit)  │
+└──────────┘
+```
+
+---
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    DungeonGenerator                         │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │              DungeonPipelineData (SO)                │   │
+│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐   │   │
+│  │  │ Rule 1  │→│ Rule 2  │→│ Rule 3  │→│ Rule N  │   │   │
+│  │  └─────────┘ └─────────┘ └─────────┘ └─────────┘   │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                           ↓                                 │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │                 DungeonContext                       │   │
+│  │  ┌──────────────┐  ┌──────────────┐                 │   │
+│  │  │  Macro Data  │  │  Micro Data  │                 │   │
+│  │  │  RoomNodes   │  │  TileData    │                 │   │
+│  │  └──────────────┘  └──────────────┘                 │   │
+│  └─────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 📁 Project Structure
+
+```
+LevelGenerationV4/
+├── Core/                          # Core framework
+│   ├── DungeonGenerator.cs        # Main generator executor
+│   ├── DungeonContext.cs          # Data blackboard
+│   └── DungeonPipelineData.cs     # Pipeline configuration SO
+├── Rules/
+│   ├── Abstractions/              # Interfaces & base classes
+│   │   ├── IGeneratorRule.cs
+│   │   └── GeneratorRuleBase.cs
+│   ├── Macro/                     # Room layout rules
+│   │   ├── ConstrainedLayoutRule.cs   # Drunkard walk algorithm
+│   │   └── BFSValidationRule.cs       # Connectivity validation
+│   ├── Micro/                     # Terrain generation rules
+│   │   ├── CellularAutomataRule.cs    # Cave terrain (CA)
+│   │   ├── EntranceExitRule.cs        # Entry/exit carving
+│   │   ├── PathValidationRule.cs      # 2x2 player pathfinding
+│   │   └── PlatformRule.cs            # Platform generation
+│   └── Rendering/                 # Tilemap rendering rules
+│       ├── RoomRenderRule.cs
+│       ├── WallRenderRule.cs
+│       ├── GroundRenderRule.cs
+│       └── PlatformRenderRule.cs
+├── Data/                          # Data structures
+│   ├── RoomNode.cs
+│   ├── TileConfig.cs
+│   └── TilemapLayer.cs
+└── Editor/                        # Editor extensions
+```
+
+---
+
+## 🔧 Rule Execution Order
+
+| Order | Rule | Type | Description |
+|-------|------|------|-------------|
+| 10 | `ConstrainedLayoutRule` | Macro | Drunkard walk room layout |
+| 20 | `BFSValidationRule` | Macro | Connectivity & critical path |
+| 30 | `CellularAutomataRule` | Micro | Cave terrain generation |
+| 35 | `EntranceExitRule` | Micro | Carve entry/exit areas |
+| 36 | `PathValidationRule` | Micro | 2x2 player path validation |
+| 40 | `PlatformRule` | Micro | Air column platform sampling |
+| 100 | `RoomRenderRule` | Render | Background layer |
+| 105 | `WallRenderRule` | Render | Wall borders |
+| 110 | `GroundRenderRule` | Render | Ground tiles |
+| 120 | `PlatformRenderRule` | Render | Platform tiles |
+
+---
+
+## 🧮 Core Algorithms
+
+### Drunkard Walk (Room Layout)
 ```csharp
-public enum TerrainArchetype
+// Weighted random walk with downward bias
+Direction = Random.value < DownwardBias ? Down : Random.Side;
+```
+
+### Cellular Automata (Terrain)
+```csharp
+// Conway's Game of Life variant
+if (neighbors >= BirthLimit) → Solid
+if (neighbors < DeathLimit) → Empty
+```
+
+### Air Column Sampling (Platforms)
+```csharp
+// Vertical scan for continuous air gaps
+if (airCount >= SafeHeight && airCount % Interval == 0)
+    → Place platform
+```
+
+---
+
+## 📦 Dependencies
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| Unity | 2022.3+ | Game engine |
+| [UniTask](https://github.com/Cysharp/UniTask) | 2.5.10+ | Async/await support |
+| [Odin Inspector](https://odininspector.com/) | 3.0+ | Editor UI |
+
+---
+
+## 🚀 Quick Start
+
+### 1. Create Pipeline Asset
+```
+Right-click → Create → Dungeon → Pipeline Data
+```
+
+### 2. Configure Rules
+Add rules in the Inspector and adjust parameters.
+
+### 3. Setup Scene
+```csharp
+// Add DungeonGenerator component to a GameObject
+// Assign PipelineData and Tilemaps
+```
+
+### 4. Generate
+```csharp
+var generator = GetComponent<DungeonGenerator>();
+bool success = await generator.GenerateDungeonAsync(seed);
+```
+
+---
+
+## 📖 API Reference
+
+### DungeonGenerator
+```csharp
+// Generate dungeon with optional seed
+public async UniTask<bool> GenerateDungeonAsync(int seed = -1)
+
+// Cancel current generation
+public void CancelGeneration()
+```
+
+### DungeonContext
+```csharp
+// Tile access
+public int GetTile(TilemapLayer layer, int x, int y)
+public void SetTile(TilemapLayer layer, int x, int y, int value)
+
+// Room data
+public List<RoomNode> RoomNodes { get; }
+public Vector2Int StartRoom { get; }
+public Vector2Int EndRoom { get; }
+```
+
+### Custom Rule
+```csharp
+[Serializable]
+public class MyRule : GeneratorRuleBase
 {
-    Solid,           // 实心岩石（非路径区域）
-    Open,            // 完全空旷（高空区域）
-    Corridor,        // 水平直通隧道
-    Shaft,           // 垂直竖井
-    Corner_BL,       // 拐角：左通 & 下通
-    Corner_TL,       // 拐角：左通 & 上通
-    Corner_BR,       // 拐角：右通 & 下通
-    Corner_TR,       // 拐角：右通 & 上通
-    Stairs_Pos,      // 正向阶梯 (/)
-    Stairs_Neg,      // 负向阶梯 (\)
-    Mountain_Base,   // 山体基座
-    Mountain_Peak,   // 山峰
-    Platforms_Sparse,// 稀疏平台
-    T_Junction_LRD,  // T型交叉 - 左右下
-    T_Junction_LRU,  // T型交叉 - 左右上
-    Cross_Junction,  // 十字交叉
-    Landing_Zone     // 着陆区
+    public MyRule()
+    {
+        _ruleName = "MyRule";
+        _executionOrder = 50;
+    }
+
+    public override async UniTask<bool> ExecuteAsync(
+        DungeonContext context, 
+        CancellationToken token)
+    {
+        // Your generation logic here
+        return true;
+    }
 }
 ```
 
-### 4步生成流程
+---
 
-1. **InitializeTerrainMap()** - 初始化地形数据数组
-2. **AnalyzeGridTopology()** - 拓扑分析并分配原语类型
-3. **RasterizeAllChunks()** - 确定性光栅化填充
-4. **CarvePathConnections()** - 安全修正确保连通
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-## MultiGridLevelManager 功能列表
+## 🤝 Contributing
 
-### ✅ 已实现功能
-
-| 功能模块 | 描述 | 状态 |
-|---------|------|------|
-| **多网格布局** | 支持1-8个独立关卡区域 | ✅ |
-| **随机位置分布** | 在指定区域内随机放置网格 | ✅ |
-| **碰撞检测** | 防止网格重叠 | ✅ |
-| **独立种子** | 每个网格使用独立随机种子 | ✅ |
-| **特殊区域概率** | 中位数网格和其他网格不同概率 | ✅ |
-| **调试显示** | 网格边界和出入口标记可视化 | ✅ |
-| **形状预设** | 支持多种LevelShape预设 | ✅ |
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ---
 
-## ⚠️ 已知问题
-
-### 1. 多平台问题 (未解决)
-
-**问题描述：**
-新的拓扑原语系统生成的地形中，某些区域仍然出现过多的平台或平台分布不合理的情况。
-
-**可能原因：**
-- `Platforms_Sparse` 原语的光栅化函数需要调优
-- 部分 Archetype 的平台生成逻辑可能与预期不符
-- 需要更精细的拓扑分析来决定哪些区域需要平台
-
-**临时解决方案：**
-已禁用旧版 `DrawPlatforms()` 调用，但新系统内置的平台生成可能仍需调整。
-
-**相关代码位置：**
-- `GrayboxLevelGenerator.cs` 第583-850行 (`FillChunk*` 方法)
-- `DrawCaveFill()` 方法
-
-### 2. TileSet 配置问题
-
-**问题描述：**
-新场景或重新配置时可能出现 "瓦片未正确配置" 错误。
-
-**解决方案：**
-需要在Unity Inspector中手动配置：
-- `TilemapLayers` - 四层Tilemap引用
-- `TileSet` - 四种瓦片资源引用
-
----
-
-## 文件结构
-
-```
-3_LevelGeneration/
-├── Graybox/
-│   ├── GrayboxLevelGenerator.cs      # 房间生成器（V3核心）
-│   ├── MultiGridLevelManager.cs      # 多房间生成器
-│   ├── GrayboxTilemapLayers.cs       # Tilemap层配置
-│   ├── GrayboxGridPreview.cs         # 网格预览
-│   └── ...
-├── Data/
-│   ├── LevelShape.cs                 # 关卡形状定义
-│   ├── RoomNode.cs                   # 房间节点数据
-│   └── RoomType.cs                   # 房间类型枚举
-├── docs/
-│   ├── DESIGN_TopologyBasedTerrainGeneration.md  # 拓扑原语系统设计文档
-│   └── ...
-└── LevelGenerationV3/
-    └── README.md                     # 本文档
-```
-
----
-
-## 版本信息
-
-- **版本**: V3.0
-- **更新日期**: 2026-01-17
-- **状态**: 开发中
-- **分支**: feature/topology-terrain-system
-
----
-
-## 下一步计划
-
-1. [ ] 解决多平台问题 - 调优 `Platforms_Sparse` 光栅化函数
-2. [ ] 添加更多 TerrainArchetype 类型
-3. [ ] 实现房间间的过渡地形
-4. [ ] 性能优化
-5. [ ] 单元测试覆盖
+<p align="center">
+  Made with ❤️ for procedural generation enthusiasts
+</p>
