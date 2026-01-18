@@ -47,7 +47,7 @@ namespace CryptaGeometrica.LevelGeneration.V4
         public GroundRenderRule()
         {
             _ruleName = "GroundRenderRule";
-            _executionOrder = 110; // 在RoomRenderRule和WallRenderRule之后执行
+            _executionOrder = 110; // 在RoomRenderRule之后执行，负责渲染 GroundTileData
         }
 
         /// <inheritdoc/>

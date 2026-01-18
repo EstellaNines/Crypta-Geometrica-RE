@@ -109,7 +109,7 @@ namespace CryptaGeometrica.LevelGeneration.V4
 
         /// <summary>
         /// 处理单个房间的平台生成
-        /// 使用空气柱步进采样算法，在连续空旷区域生成平台
+        /// 使用 Bottom-Up 模拟攀爬算法 + 包围盒预检查
         /// </summary>
         private int ProcessRoom(DungeonContext context, RoomNode room, int safeHeight)
         {
@@ -119,20 +119,20 @@ namespace CryptaGeometrica.LevelGeneration.V4
             int width = bounds.size.x;
             int height = bounds.size.y;
 
-            // 记录已放置平台的位置（避免重叠）
-            HashSet<Vector2Int> placedPlatforms = new HashSet<Vector2Int>();
+            // 【关键改动】使用 List<BoundsInt> 记录平台的实际占地面积
+            List<BoundsInt> placedPlatformBounds = new List<BoundsInt>();
             int platformCount = 0;
 
-            // 平台间隔：安全高度 - 容错
-            int platformInterval = Mathf.Max(6, safeHeight - 4);
+            // 平台间隔：安全高度 - 安全余量
+            int platformInterval = Mathf.Max(5, safeHeight - _safetyMargin);
 
-            // 垂直扫描每一列（从上往下）
+            // 垂直扫描每一列（Bottom-Up：从下往上）
             for (int x = startX + 2; x < startX + width - 2; x++)
             {
                 int continuousAirCount = 0;
 
-                // 从顶部向下扫描
-                for (int y = startY + height - 1; y >= startY; y--)
+                // 从底部向上扫描
+                for (int y = startY; y < startY + height; y++)
                 {
                     int tile = context.GetTile(TilemapLayer.Ground, x, y);
                     bool isSolid = (tile == 1);
@@ -141,32 +141,27 @@ namespace CryptaGeometrica.LevelGeneration.V4
                     {
                         continuousAirCount++;
 
-                        // 核心触发逻辑：当空位高度达到阈值，且满足间隔条件
-                        if (continuousAirCount >= safeHeight && 
-                            (continuousAirCount % platformInterval == 0))
+                        // 核心触发逻辑：当距离上一个地面/平台达到安全高度时生成平台
+                        if (continuousAirCount >= platformInterval)
                         {
-                            // 检查是否与已放置平台太近
-                            bool tooClose = false;
-                            foreach (var placed in placedPlatforms)
+                            // 【关键改动】先计算平台包围盒，再检查是否碰撞
+                            BoundsInt? predictedBounds = CalculatePlatformBounds(context, x, y, bounds);
+                            
+                            if (predictedBounds.HasValue)
                             {
-                                if (Mathf.Abs(placed.x - x) < _minHorizontalSpacing &&
-                                    Mathf.Abs(placed.y - y) < platformInterval / 2)
+                                // 检查与已放置平台的包围盒是否碰撞
+                                if (!CheckBoundsCollision(predictedBounds.Value, placedPlatformBounds, _minHorizontalSpacing, platformInterval / 2))
                                 {
-                                    tooClose = true;
-                                    break;
-                                }
-                            }
-
-                            if (!tooClose)
-                            {
-                                // 尝试放置自适应平台
-                                if (TryPlaceAdaptivePlatform(context, x, y, bounds))
-                                {
-                                    placedPlatforms.Add(new Vector2Int(x, y));
+                                    // 实际放置平台
+                                    PlacePlatformFromBounds(context, predictedBounds.Value);
+                                    placedPlatformBounds.Add(predictedBounds.Value);
                                     platformCount++;
 
+                                    // 【关键】重置计数器，将当前平台视为新的"地面"
+                                    continuousAirCount = 0;
+
                                     if (_debugLog)
-                                        LogInfo($"空气柱平台: x={x}, y={y}, 连续空气={continuousAirCount}");
+                                        LogInfo($"Bottom-Up平台: x={predictedBounds.Value.xMin}, y={y}, 宽度={predictedBounds.Value.size.x}");
                                 }
                             }
                         }
@@ -179,7 +174,226 @@ namespace CryptaGeometrica.LevelGeneration.V4
                 }
             }
 
+            // 填充大空洞（按层扫描）
+            platformCount += FillBigGaps(context, bounds, safeHeight, placedPlatformBounds);
+
             return platformCount;
+        }
+
+        /// <summary>
+        /// 填充大空洞（按层扫描）+ 包围盒预检查
+        /// 解决房间中间大面积空白区域的问题
+        /// </summary>
+        private int FillBigGaps(DungeonContext context, BoundsInt bounds, int safeHeight, List<BoundsInt> placedPlatformBounds)
+        {
+            int startX = bounds.xMin;
+            int startY = bounds.yMin;
+            int width = bounds.size.x;
+            int height = bounds.size.y;
+            int platformCount = 0;
+
+            // 平台间隔
+            int platformInterval = Mathf.Max(5, safeHeight - _safetyMargin);
+
+            // 按层扫描（从下往上，每隔 platformInterval 一层）
+            for (int layerY = startY + platformInterval; layerY < startY + height - 3; layerY += platformInterval)
+            {
+                // 扫描这一层的水平连续空气区域
+                int airRunStart = -1;
+                int airRunLength = 0;
+
+                for (int x = startX + 2; x < startX + width - 2; x++)
+                {
+                    int tile = context.GetTile(TilemapLayer.Ground, x, layerY);
+                    
+                    // 检查该位置是否在已有平台包围盒内
+                    bool hasExistingPlatform = IsPointInAnyBounds(x, layerY, placedPlatformBounds, _minHorizontalSpacing, platformInterval / 2);
+
+                    bool isAir = (tile == 0) && !hasExistingPlatform;
+
+                    if (isAir)
+                    {
+                        if (airRunStart < 0)
+                            airRunStart = x;
+                        airRunLength++;
+                    }
+                    else
+                    {
+                        // 空气区域结束，检查是否需要填充平台
+                        if (airRunLength >= _minHorizontalSpacing * 2)
+                        {
+                            int platformX = airRunStart + airRunLength / 2;
+                            BoundsInt? predictedBounds = CalculatePlatformBounds(context, platformX, layerY, bounds);
+                            
+                            if (predictedBounds.HasValue && 
+                                !CheckBoundsCollision(predictedBounds.Value, placedPlatformBounds, _minHorizontalSpacing, platformInterval / 2))
+                            {
+                                PlacePlatformFromBounds(context, predictedBounds.Value);
+                                placedPlatformBounds.Add(predictedBounds.Value);
+                                platformCount++;
+
+                                if (_debugLog)
+                                    LogInfo($"大空洞填充平台: x={predictedBounds.Value.xMin}, y={layerY}, 宽度={predictedBounds.Value.size.x}");
+                            }
+                        }
+
+                        airRunStart = -1;
+                        airRunLength = 0;
+                    }
+                }
+
+                // 处理行末尾的空气区域
+                if (airRunLength >= _minHorizontalSpacing * 2)
+                {
+                    int platformX = airRunStart + airRunLength / 2;
+                    BoundsInt? predictedBounds = CalculatePlatformBounds(context, platformX, layerY, bounds);
+                    
+                    if (predictedBounds.HasValue && 
+                        !CheckBoundsCollision(predictedBounds.Value, placedPlatformBounds, _minHorizontalSpacing, platformInterval / 2))
+                    {
+                        PlacePlatformFromBounds(context, predictedBounds.Value);
+                        placedPlatformBounds.Add(predictedBounds.Value);
+                        platformCount++;
+                    }
+                }
+            }
+
+            return platformCount;
+        }
+
+        /// <summary>
+        /// 计算平台的预期包围盒（不实际放置）
+        /// </summary>
+        private BoundsInt? CalculatePlatformBounds(DungeonContext context, int x, int y, BoundsInt roomBounds)
+        {
+            // 边界检查
+            if (y < roomBounds.yMin + 2 || y > roomBounds.yMax - 3)
+                return null;
+
+            // 计算左右可用空间
+            int leftSpace = 0;
+            int rightSpace = 0;
+
+            // 向左探测
+            for (int dx = 0; dx < _maxPlatformWidth; dx++)
+            {
+                int checkX = x - dx;
+                int leftEdgeX = checkX - 1;
+                
+                if (checkX < roomBounds.xMin + 2) break;
+                
+                bool currentClear = context.GetTile(TilemapLayer.Ground, checkX, y) == 0 &&
+                                    context.GetTile(TilemapLayer.Ground, checkX, y + 1) == 0 &&
+                                    context.GetTile(TilemapLayer.Ground, checkX, y + 2) == 0;
+                
+                bool leftEdgeIsWall = context.GetTile(TilemapLayer.Ground, leftEdgeX, y) == 1;
+                
+                if (!currentClear) break;
+                if (leftEdgeIsWall && dx > 0) break;
+                    
+                leftSpace++;
+            }
+
+            // 向右探测
+            for (int dx = 1; dx < _maxPlatformWidth; dx++)
+            {
+                int checkX = x + dx;
+                int rightEdgeX = checkX + 1;
+                
+                if (checkX > roomBounds.xMax - 3) break;
+                
+                bool currentClear = context.GetTile(TilemapLayer.Ground, checkX, y) == 0 &&
+                                    context.GetTile(TilemapLayer.Ground, checkX, y + 1) == 0 &&
+                                    context.GetTile(TilemapLayer.Ground, checkX, y + 2) == 0;
+                
+                bool rightEdgeIsWall = context.GetTile(TilemapLayer.Ground, rightEdgeX, y) == 1;
+                
+                if (!currentClear) break;
+                if (rightEdgeIsWall) break;
+                    
+                rightSpace++;
+            }
+
+            int totalSpace = leftSpace + rightSpace;
+            if (totalSpace < _minPlatformWidth)
+                return null;
+
+            // 计算实际平台宽度和起始位置
+            int platformWidth = Mathf.Min(totalSpace, _maxPlatformWidth);
+            int platformStartX = x - Mathf.Min(leftSpace - 1, platformWidth / 2);
+            
+            // 最终验证：确保平台两端与墙壁有1格间距
+            int platformLeftEdge = platformStartX - 1;
+            int platformRightEdge = platformStartX + platformWidth;
+            
+            if (context.GetTile(TilemapLayer.Ground, platformLeftEdge, y) == 1 ||
+                context.GetTile(TilemapLayer.Ground, platformRightEdge, y) == 1)
+            {
+                return null;
+            }
+
+            // 返回包围盒（包含安全边距）
+            return new BoundsInt(platformStartX, y - _platformThickness + 1, 0, platformWidth, _platformThickness, 1);
+        }
+
+        /// <summary>
+        /// 检查新平台包围盒是否与已有平台碰撞
+        /// </summary>
+        private bool CheckBoundsCollision(BoundsInt newBounds, List<BoundsInt> existingBounds, int horizontalMargin, int verticalMargin)
+        {
+            // 扩展新包围盒以包含安全边距
+            BoundsInt expandedBounds = new BoundsInt(
+                newBounds.xMin - horizontalMargin,
+                newBounds.yMin - verticalMargin,
+                0,
+                newBounds.size.x + horizontalMargin * 2,
+                newBounds.size.y + verticalMargin * 2,
+                1
+            );
+
+            foreach (var existing in existingBounds)
+            {
+                // 矩形碰撞检测 (AABB)
+                if (expandedBounds.xMin < existing.xMax &&
+                    expandedBounds.xMax > existing.xMin &&
+                    expandedBounds.yMin < existing.yMax &&
+                    expandedBounds.yMax > existing.yMin)
+                {
+                    return true; // 碰撞
+                }
+            }
+
+            return false; // 无碰撞
+        }
+
+        /// <summary>
+        /// 检查点是否在任何平台包围盒附近
+        /// </summary>
+        private bool IsPointInAnyBounds(int x, int y, List<BoundsInt> boundsList, int horizontalMargin, int verticalMargin)
+        {
+            foreach (var b in boundsList)
+            {
+                if (x >= b.xMin - horizontalMargin && x < b.xMax + horizontalMargin &&
+                    y >= b.yMin - verticalMargin && y < b.yMax + verticalMargin)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// 根据包围盒实际放置平台
+        /// </summary>
+        private void PlacePlatformFromBounds(DungeonContext context, BoundsInt platformBounds)
+        {
+            for (int dx = 0; dx < platformBounds.size.x; dx++)
+            {
+                for (int dy = 0; dy < platformBounds.size.y; dy++)
+                {
+                    context.SetTile(TilemapLayer.Platform, platformBounds.xMin + dx, platformBounds.yMin + dy, 1);
+                }
+            }
         }
 
         /// <summary>

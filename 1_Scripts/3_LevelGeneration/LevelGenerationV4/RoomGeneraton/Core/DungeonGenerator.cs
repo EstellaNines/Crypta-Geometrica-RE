@@ -27,6 +27,13 @@ namespace CryptaGeometrica.LevelGeneration.V4
         [SerializeField]
         private int _seed = -1;
 
+        [TitleGroup("配置")]
+        [LabelText("最大重试次数")]
+        [Tooltip("生成失败时自动重试的最大次数")]
+        [Range(1, 10)]
+        [SerializeField]
+        private int _maxRetryCount = 3;
+
         [TitleGroup("Tilemap引用")]
         [LabelText("背景层 (Background)")]
         [SerializeField]
@@ -120,7 +127,7 @@ namespace CryptaGeometrica.LevelGeneration.V4
         #region 公开方法
 
         /// <summary>
-        /// 异步生成地牢
+        /// 异步生成地牢（带重试机制）
         /// </summary>
         /// <param name="seed">随机种子，-1表示使用系统时间</param>
         /// <returns>生成是否成功</returns>
@@ -158,35 +165,85 @@ namespace CryptaGeometrica.LevelGeneration.V4
             _cts?.Dispose();
             _cts = new CancellationTokenSource();
 
-            int actualSeed = seed == -1 ? (_seed == -1 ? Environment.TickCount : _seed) : seed;
+            int baseSeed = seed == -1 ? (_seed == -1 ? Environment.TickCount : _seed) : seed;
+            int currentAttempt = 0;
+            bool success = false;
 
-            // 创建上下文
-            _context?.Dispose();
-            _context = new DungeonContext(actualSeed)
+            // 【重试机制】失败时刷新种子重新生成
+            while (currentAttempt < _maxRetryCount && !success)
             {
-                Token = _cts.Token,
-                GridColumns = _pipeline.GridColumns,
-                GridRows = _pipeline.GridRows,
-                RoomSize = _pipeline.RoomSize,
-                MapWidth = _pipeline.TotalWidth,
-                MapHeight = _pipeline.TotalHeight
-            };
+                currentAttempt++;
+                int actualSeed = baseSeed + (currentAttempt - 1); // 每次重试种子+1
 
-            // 分配三层地形数据数组
-            int totalTiles = _context.MapWidth * _context.MapHeight;
-            _context.BackgroundTileData = new int[totalTiles];
-            _context.GroundTileData = new int[totalTiles];
-            _context.PlatformTileData = new int[totalTiles];
+                if (currentAttempt > 1)
+                {
+                    Debug.Log($"<color=yellow>[DungeonGenerator] 重试生成 ({currentAttempt}/{_maxRetryCount})，新种子={actualSeed}</color>");
+                }
+
+                // 创建上下文
+                _context?.Dispose();
+                _context = new DungeonContext(actualSeed)
+                {
+                    Token = _cts.Token,
+                    GridColumns = _pipeline.GridColumns,
+                    GridRows = _pipeline.GridRows,
+                    RoomSize = _pipeline.RoomSize,
+                    MapWidth = _pipeline.TotalWidth,
+                    MapHeight = _pipeline.TotalHeight
+                };
+
+                // 分配三层地形数据数组
+                int totalTiles = _context.MapWidth * _context.MapHeight;
+                _context.BackgroundTileData = new int[totalTiles];
+                _context.GroundTileData = new int[totalTiles];
+                _context.PlatformTileData = new int[totalTiles];
+
+                // 清空 Tilemap（重试时需要）
+                if (currentAttempt > 1)
+                {
+                    _backgroundTilemap?.ClearAllTiles();
+                    _groundTilemap?.ClearAllTiles();
+                    _platformTilemap?.ClearAllTiles();
+                }
+
+                if (_pipeline.EnableLogging)
+                {
+                    Debug.Log($"[DungeonGenerator] 开始生成，种子={actualSeed}，尺寸={_context.MapWidth}x{_context.MapHeight}");
+                }
+
+                if (currentAttempt == 1)
+                {
+                    OnGenerationStarted?.Invoke(actualSeed);
+                }
+
+                success = await ExecuteGenerationPipeline();
+
+                if (!success && currentAttempt < _maxRetryCount)
+                {
+                    Debug.LogWarning($"[DungeonGenerator] 生成失败，将重试...");
+                }
+            }
+
+            _isGenerating = false;
 
             if (_pipeline.EnableLogging)
             {
-                Debug.Log($"[DungeonGenerator] 开始生成，种子={actualSeed}，尺寸={_context.MapWidth}x{_context.MapHeight}");
+                if (success)
+                    Debug.Log($"<color=green>[DungeonGenerator] 生成成功（尝试次数: {currentAttempt}）</color>");
+                else
+                    Debug.LogError($"[DungeonGenerator] 生成失败（已达到最大重试次数 {_maxRetryCount}）");
             }
 
-            OnGenerationStarted?.Invoke(actualSeed);
+            OnGenerationCompleted?.Invoke(success);
 
-            bool success = true;
+            return success;
+        }
 
+        /// <summary>
+        /// 执行生成管线（单次尝试）
+        /// </summary>
+        private async UniTask<bool> ExecuteGenerationPipeline()
+        {
             try
             {
                 // 获取已启用的规则
@@ -195,6 +252,7 @@ namespace CryptaGeometrica.LevelGeneration.V4
                 if (rules.Count == 0)
                 {
                     Debug.LogWarning("[DungeonGenerator] 没有启用的规则");
+                    return true;
                 }
 
                 // 按顺序执行规则
@@ -203,18 +261,13 @@ namespace CryptaGeometrica.LevelGeneration.V4
                     if (_cts.Token.IsCancellationRequested)
                     {
                         Debug.LogWarning("[DungeonGenerator] 生成被取消");
-                        success = false;
-                        break;
+                        return false;
                     }
 
                     if (_pipeline.EnableLogging)
                     {
                         Debug.Log($"[DungeonGenerator] 执行规则: {rule.RuleName} (Order={rule.ExecutionOrder})");
                     }
-
-                    // 规则自行决定是否需要切换线程
-                    // 计算密集型规则在内部调用 UniTask.SwitchToThreadPool()
-                    // 渲染规则需要在主线程执行 Unity API
 
                     bool ruleSuccess;
                     try
@@ -224,12 +277,12 @@ namespace CryptaGeometrica.LevelGeneration.V4
                     catch (OperationCanceledException)
                     {
                         Debug.LogWarning($"[DungeonGenerator] 规则被取消: {rule.RuleName}");
-                        ruleSuccess = false;
+                        return false;
                     }
                     catch (Exception ex)
                     {
                         Debug.LogError($"[DungeonGenerator] 规则执行异常: {rule.RuleName}\n{ex}");
-                        ruleSuccess = false;
+                        return false;
                     }
 
                     OnRuleExecuted?.Invoke(rule.RuleName, ruleSuccess);
@@ -237,29 +290,17 @@ namespace CryptaGeometrica.LevelGeneration.V4
                     if (!ruleSuccess)
                     {
                         Debug.LogError($"[DungeonGenerator] 规则执行失败: {rule.RuleName}");
-                        success = false;
-                        break;
+                        return false;
                     }
                 }
+
+                return true;
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[DungeonGenerator] 生成过程发生异常\n{ex}");
-                success = false;
+                return false;
             }
-            finally
-            {
-                _isGenerating = false;
-            }
-
-            if (_pipeline.EnableLogging)
-            {
-                Debug.Log($"[DungeonGenerator] 生成{(success ? "完成" : "失败")}");
-            }
-
-            OnGenerationCompleted?.Invoke(success);
-
-            return success;
         }
 
         /// <summary>

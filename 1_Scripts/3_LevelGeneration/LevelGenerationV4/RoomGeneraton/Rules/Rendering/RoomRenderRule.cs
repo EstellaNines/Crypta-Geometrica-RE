@@ -98,7 +98,7 @@ namespace CryptaGeometrica.LevelGeneration.V4
             int width = bounds.size.x;
             int height = bounds.size.y;
 
-            // 只渲染背景层（墙壁由WallRenderRule处理）
+            // 只渲染背景层（边界由 BorderEnforcementRule 在 GroundTileData 中处理）
             RenderBackground(context, startX, startY, width, height, config);
         }
 
