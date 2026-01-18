@@ -9,7 +9,7 @@ namespace CryptaGeometrica.LevelGeneration.V4
     /// 包含拓扑信息、出入口约束和连接关系
     /// </summary>
     [Serializable]
-    public struct RoomNode
+    public class RoomNode
     {
         /// <summary>
         /// 网格坐标

@@ -59,8 +59,8 @@ namespace CryptaGeometrica.LevelGeneration.V4
             LogInfo("开始路径验证...");
 
             // 找到起点和终点房间
-            RoomNode? startRoom = null;
-            RoomNode? endRoom = null;
+            RoomNode startRoom = null;
+            RoomNode endRoom = null;
 
             foreach (var room in context.RoomNodes)
             {
@@ -70,15 +70,15 @@ namespace CryptaGeometrica.LevelGeneration.V4
                     endRoom = room;
             }
 
-            if (!startRoom.HasValue || !endRoom.HasValue)
+            if (startRoom == null || endRoom == null)
             {
                 LogWarning("未找到起点或终点房间，跳过路径验证");
                 return true;
             }
 
             // 计算起点和终点位置
-            Vector2Int startPos = CalculateDoorPosition(startRoom.Value);
-            Vector2Int endPos = CalculateDoorPosition(endRoom.Value);
+            Vector2Int startPos = CalculateDoorPosition(startRoom);
+            Vector2Int endPos = CalculateDoorPosition(endRoom);
 
             LogInfo($"起点: {startPos}, 终点: {endPos}");
 

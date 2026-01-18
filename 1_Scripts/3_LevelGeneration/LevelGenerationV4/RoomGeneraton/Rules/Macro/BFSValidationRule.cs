@@ -106,11 +106,11 @@ namespace CryptaGeometrica.LevelGeneration.V4
                 }
 
                 // 获取当前房间的邻居
-                RoomNode? currentNode = FindRoomNode(context, current);
-                if (currentNode == null || currentNode.Value.ConnectedNeighbors == null)
+                RoomNode currentNode = FindRoomNode(context, current);
+                if (currentNode == null || currentNode.ConnectedNeighbors == null)
                     continue;
 
-                foreach (var neighbor in currentNode.Value.ConnectedNeighbors)
+                foreach (var neighbor in currentNode.ConnectedNeighbors)
                 {
                     if (!visited.Contains(neighbor))
                     {
@@ -147,7 +147,7 @@ namespace CryptaGeometrica.LevelGeneration.V4
         /// <summary>
         /// 查找房间节点
         /// </summary>
-        private RoomNode? FindRoomNode(DungeonContext context, Vector2Int pos)
+        private RoomNode FindRoomNode(DungeonContext context, Vector2Int pos)
         {
             foreach (var node in context.RoomNodes)
             {
@@ -168,7 +168,6 @@ namespace CryptaGeometrica.LevelGeneration.V4
                 if (node.GridPosition == pos)
                 {
                     node.IsCritical = true;
-                    context.RoomNodes[i] = node;
                     break;
                 }
             }
@@ -223,9 +222,6 @@ namespace CryptaGeometrica.LevelGeneration.V4
 
                         nodeRef.AddNeighbor(neighbor);
                         neighborRef.AddNeighbor(pos);
-
-                        context.RoomNodes[nodeIdx] = nodeRef;
-                        context.RoomNodes[neighborIdx] = neighborRef;
 
                         // 更新邻接矩阵
                         int fromMatrixIdx = pos.y * cols + pos.x;

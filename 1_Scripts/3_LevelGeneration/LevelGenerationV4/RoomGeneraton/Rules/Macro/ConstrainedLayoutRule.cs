@@ -369,12 +369,10 @@ namespace CryptaGeometrica.LevelGeneration.V4
                 if (node.GridPosition == from)
                 {
                     node.AddNeighbor(to);
-                    context.RoomNodes[i] = node; // struct需要重新赋值
                 }
                 else if (node.GridPosition == to)
                 {
                     node.AddNeighbor(from);
-                    context.RoomNodes[i] = node;
                 }
             }
         }
@@ -406,13 +404,11 @@ namespace CryptaGeometrica.LevelGeneration.V4
                 if (node.GridPosition == startPos)
                 {
                     node.SetAsStart(startDoorSide);
-                    context.RoomNodes[i] = node;
                     LogInfo($"起点房间: ({startPos.x}, {startPos.y}), 入口方向: {startDoorSide}");
                 }
                 else if (node.GridPosition == endPos)
                 {
                     node.SetAsEnd(endDoorSide);
-                    context.RoomNodes[i] = node;
                     LogInfo($"终点房间: ({endPos.x}, {endPos.y}), 出口方向: {endDoorSide}");
                 }
             }
@@ -472,7 +468,7 @@ namespace CryptaGeometrica.LevelGeneration.V4
                 Vector2Int current = queue.Dequeue();
                 int currentDist = distances[current];
 
-                RoomNode? currentNode = null;
+                RoomNode currentNode = null;
                 foreach (var node in context.RoomNodes)
                 {
                     if (node.GridPosition == current)
@@ -482,10 +478,10 @@ namespace CryptaGeometrica.LevelGeneration.V4
                     }
                 }
 
-                if (currentNode == null || currentNode.Value.ConnectedNeighbors == null)
+                if (currentNode == null || currentNode.ConnectedNeighbors == null)
                     continue;
 
-                foreach (var neighbor in currentNode.Value.ConnectedNeighbors)
+                foreach (var neighbor in currentNode.ConnectedNeighbors)
                 {
                     if (!distances.ContainsKey(neighbor))
                     {
@@ -555,7 +551,7 @@ namespace CryptaGeometrica.LevelGeneration.V4
                 int currentDist = distances[current];
 
                 // 找到当前房间的邻居
-                RoomNode? currentNode = null;
+                RoomNode currentNode = null;
                 foreach (var node in context.RoomNodes)
                 {
                     if (node.GridPosition == current)
@@ -565,10 +561,10 @@ namespace CryptaGeometrica.LevelGeneration.V4
                     }
                 }
 
-                if (currentNode == null || currentNode.Value.ConnectedNeighbors == null)
+                if (currentNode == null || currentNode.ConnectedNeighbors == null)
                     continue;
 
-                foreach (var neighbor in currentNode.Value.ConnectedNeighbors)
+                foreach (var neighbor in currentNode.ConnectedNeighbors)
                 {
                     if (!distances.ContainsKey(neighbor))
                     {
@@ -648,8 +644,8 @@ namespace CryptaGeometrica.LevelGeneration.V4
             }
 
             // 3. 验证起点侧向门不被阻挡
-            RoomNode? startNode = null;
-            RoomNode? endNode = null;
+            RoomNode startNode = null;
+            RoomNode endNode = null;
             foreach (var node in context.RoomNodes)
             {
                 if (node.GridPosition == context.StartRoom)
@@ -658,13 +654,13 @@ namespace CryptaGeometrica.LevelGeneration.V4
                     endNode = node;
             }
 
-            if (startNode.HasValue && IsDoorBlocked(context, startNode.Value))
+            if (startNode != null && IsDoorBlocked(context, startNode))
             {
                 LogWarning($"起点侧向门被阻挡");
                 return false;
             }
 
-            if (endNode.HasValue && IsDoorBlocked(context, endNode.Value))
+            if (endNode != null && IsDoorBlocked(context, endNode))
             {
                 LogWarning($"终点侧向门被阻挡");
                 return false;

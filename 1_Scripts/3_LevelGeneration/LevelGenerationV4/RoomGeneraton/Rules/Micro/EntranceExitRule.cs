@@ -58,8 +58,8 @@ namespace CryptaGeometrica.LevelGeneration.V4
             }
 
             // 找到起点和终点房间
-            RoomNode? startRoom = null;
-            RoomNode? endRoom = null;
+            RoomNode startRoom = null;
+            RoomNode endRoom = null;
 
             foreach (var room in context.RoomNodes)
             {
@@ -70,10 +70,10 @@ namespace CryptaGeometrica.LevelGeneration.V4
             }
 
             // 处理起点房间
-            if (startRoom.HasValue)
+            if (startRoom != null)
             {
-                LogInfo($"处理起点房间: {startRoom.Value.GridPosition}");
-                CarveEntrance(context, startRoom.Value);
+                LogInfo($"处理起点房间: {startRoom.GridPosition}");
+                CarveEntrance(context, startRoom);
             }
             else
             {
@@ -81,10 +81,10 @@ namespace CryptaGeometrica.LevelGeneration.V4
             }
 
             // 处理终点房间
-            if (endRoom.HasValue)
+            if (endRoom != null)
             {
-                LogInfo($"处理终点房间: {endRoom.Value.GridPosition}");
-                CarveExit(context, endRoom.Value);
+                LogInfo($"处理终点房间: {endRoom.GridPosition}");
+                CarveExit(context, endRoom);
             }
             else
             {

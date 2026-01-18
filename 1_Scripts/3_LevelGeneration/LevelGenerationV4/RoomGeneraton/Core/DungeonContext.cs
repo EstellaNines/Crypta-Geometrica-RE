@@ -43,6 +43,12 @@ namespace CryptaGeometrica.LevelGeneration.V4
         /// </summary>
         public Vector2Int RoomSize { get; set; }
 
+        /// <summary>
+        /// 世界坐标偏移（用于多房间渲染时的位置偏移）
+        /// 渲染规则会将此偏移添加到所有瓦片坐标上
+        /// </summary>
+        public Vector2Int WorldOffset { get; set; }
+
         #endregion
 
         #region 宏观层数据
