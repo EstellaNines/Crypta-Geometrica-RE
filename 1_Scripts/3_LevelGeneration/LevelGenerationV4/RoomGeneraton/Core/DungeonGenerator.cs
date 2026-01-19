@@ -72,6 +72,94 @@ namespace CryptaGeometrica.LevelGeneration.V4
 
         #endregion
 
+        #region 自动识别
+
+#if UNITY_EDITOR
+        [TitleGroup("自动识别")]
+        [Button("自动查找所有引用", ButtonSizes.Large)]
+        [GUIColor(0.4f, 0.8f, 0.4f)]
+        private void AutoFindAllReferences()
+        {
+            bool changed = false;
+
+            // 查找 TileConfigData
+            if (_tileConfig == null)
+            {
+                _tileConfig = TilemapFinder.FindTileConfig();
+                if (_tileConfig != null)
+                {
+                    Debug.Log($"[DungeonGenerator] 自动找到 TileConfigData: {_tileConfig.name}");
+                    changed = true;
+                }
+            }
+
+            // 查找背景 Tilemap
+            if (_backgroundTilemap == null)
+            {
+                _backgroundTilemap = TilemapFinder.FindTilemapByLayer(TilemapLayer.Background);
+                if (_backgroundTilemap != null)
+                {
+                    Debug.Log($"[DungeonGenerator] 自动找到背景 Tilemap: {_backgroundTilemap.name}");
+                    changed = true;
+                }
+            }
+
+            // 查找地面 Tilemap
+            if (_groundTilemap == null)
+            {
+                _groundTilemap = TilemapFinder.FindTilemapByLayer(TilemapLayer.Ground);
+                if (_groundTilemap != null)
+                {
+                    Debug.Log($"[DungeonGenerator] 自动找到地面 Tilemap: {_groundTilemap.name}");
+                    changed = true;
+
+                    // 尝试获取复合碰撞体
+                    if (_groundCompositeCollider == null)
+                    {
+                        _groundCompositeCollider = _groundTilemap.GetComponentInParent<CompositeCollider2D>();
+                        if (_groundCompositeCollider != null)
+                        {
+                            Debug.Log($"[DungeonGenerator] 自动找到地面复合碰撞体");
+                        }
+                    }
+                }
+            }
+
+            // 查找平台 Tilemap
+            if (_platformTilemap == null)
+            {
+                _platformTilemap = TilemapFinder.FindTilemapByLayer(TilemapLayer.Platform);
+                if (_platformTilemap != null)
+                {
+                    Debug.Log($"[DungeonGenerator] 自动找到平台 Tilemap: {_platformTilemap.name}");
+                    changed = true;
+
+                    // 尝试获取复合碰撞体
+                    if (_platformCompositeCollider == null)
+                    {
+                        _platformCompositeCollider = _platformTilemap.GetComponentInParent<CompositeCollider2D>();
+                        if (_platformCompositeCollider != null)
+                        {
+                            Debug.Log($"[DungeonGenerator] 自动找到平台复合碰撞体");
+                        }
+                    }
+                }
+            }
+
+            if (changed)
+            {
+                UnityEditor.EditorUtility.SetDirty(this);
+                Debug.Log("[DungeonGenerator] 自动查找完成，已更新引用");
+            }
+            else
+            {
+                Debug.Log("[DungeonGenerator] 所有引用已设置，无需自动查找");
+            }
+        }
+#endif
+
+        #endregion
+
         #region 运行时状态
 
         private DungeonContext _context;

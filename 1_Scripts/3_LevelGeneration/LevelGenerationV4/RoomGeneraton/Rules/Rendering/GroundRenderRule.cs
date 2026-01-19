@@ -41,6 +41,49 @@ namespace CryptaGeometrica.LevelGeneration.V4
 
         #endregion
 
+        #region 自动识别
+
+#if UNITY_EDITOR
+        [TitleGroup("自动识别")]
+        [Button("自动查找引用", ButtonSizes.Medium)]
+        [GUIColor(0.4f, 0.8f, 0.4f)]
+        private void AutoFindReferences()
+        {
+            bool changed = false;
+
+            if (_tileConfig == null)
+            {
+                _tileConfig = TilemapFinder.FindTileConfig();
+                if (_tileConfig != null)
+                {
+                    UnityEngine.Debug.Log($"[GroundRenderRule] 自动找到 TileConfigData: {_tileConfig.name}");
+                    changed = true;
+                }
+            }
+
+            if (_groundTilemap == null)
+            {
+                _groundTilemap = TilemapFinder.FindTilemapByLayer(TilemapLayer.Ground);
+                if (_groundTilemap != null)
+                {
+                    UnityEngine.Debug.Log($"[GroundRenderRule] 自动找到地面 Tilemap: {_groundTilemap.name}");
+                    changed = true;
+                }
+            }
+
+            if (changed)
+            {
+                UnityEngine.Debug.Log("[GroundRenderRule] 自动查找完成，请保存 Pipeline 资产");
+            }
+            else
+            {
+                UnityEngine.Debug.Log("[GroundRenderRule] 所有引用已设置，无需自动查找");
+            }
+        }
+#endif
+
+        #endregion
+
         /// <summary>
         /// 构造函数
         /// </summary>
