@@ -118,8 +118,8 @@ namespace CryptaGeometrica.LevelGeneration.V4
                 return false;
             }
 
-            // 清空地面Tilemap
-            _groundTilemap?.ClearAllTiles();
+            // 注意：不再清空整个Tilemap，以支持世界生成器的多房间渲染
+            // 如需清空，应由WorldGenerator或单独的清理规则处理
 
             int mapWidth = context.MapWidth;
             int mapHeight = context.MapHeight;
@@ -145,7 +145,10 @@ namespace CryptaGeometrica.LevelGeneration.V4
                     // 只渲染实心格子（value == 1）
                     if (value == 1)
                     {
-                        _groundTilemap.SetTile(new Vector3Int(x, y, 0), config.GroundRuleTile);
+                        // 应用世界偏移
+                        int worldX = x + context.WorldOffset.x;
+                        int worldY = y + context.WorldOffset.y;
+                        _groundTilemap.SetTile(new Vector3Int(worldX, worldY, 0), config.GroundRuleTile);
                         tilesRendered++;
                     }
 

@@ -221,6 +221,17 @@ namespace CryptaGeometrica.LevelGeneration.V4
         /// <returns>生成是否成功</returns>
         public async UniTask<bool> GenerateDungeonAsync(int seed = -1)
         {
+            return await GenerateDungeonAsync(seed, Vector2Int.zero);
+        }
+
+        /// <summary>
+        /// 异步生成地牢（带重试机制和世界偏移）
+        /// </summary>
+        /// <param name="seed">随机种子，-1表示使用系统时间</param>
+        /// <param name="worldOffset">世界像素偏移</param>
+        /// <returns>生成是否成功</returns>
+        public async UniTask<bool> GenerateDungeonAsync(int seed, Vector2Int worldOffset)
+        {
             if (_isGenerating)
             {
                 Debug.LogWarning("[DungeonGenerator] 生成正在进行中，请等待完成");
@@ -277,7 +288,8 @@ namespace CryptaGeometrica.LevelGeneration.V4
                     GridRows = _pipeline.GridRows,
                     RoomSize = _pipeline.RoomSize,
                     MapWidth = _pipeline.TotalWidth,
-                    MapHeight = _pipeline.TotalHeight
+                    MapHeight = _pipeline.TotalHeight,
+                    WorldOffset = worldOffset
                 };
 
                 // 分配三层地形数据数组
@@ -286,13 +298,8 @@ namespace CryptaGeometrica.LevelGeneration.V4
                 _context.GroundTileData = new int[totalTiles];
                 _context.PlatformTileData = new int[totalTiles];
 
-                // 清空 Tilemap（重试时需要）
-                if (currentAttempt > 1)
-                {
-                    _backgroundTilemap?.ClearAllTiles();
-                    _groundTilemap?.ClearAllTiles();
-                    _platformTilemap?.ClearAllTiles();
-                }
+                // 注意：不再清空整个Tilemap，以支持世界生成器的多房间渲染
+                // 重试时只需重新生成数据，渲染规则会覆盖之前的瓦片
 
                 if (_pipeline.EnableLogging)
                 {

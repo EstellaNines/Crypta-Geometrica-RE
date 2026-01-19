@@ -103,8 +103,8 @@ namespace CryptaGeometrica.LevelGeneration.V4
             
             LogInfo($"当前主题: {context.Theme}");
 
-            // 清空背景Tilemap
-            _backgroundTilemap?.ClearAllTiles();
+            // 注意：不再清空整个Tilemap，以支持世界生成器的多房间渲染
+            // 如需清空，应由WorldGenerator或单独的清理规则处理
 
             // 渲染每个有效房间
             int roomCount = 0;
@@ -136,8 +136,10 @@ namespace CryptaGeometrica.LevelGeneration.V4
         private void RenderRoom(DungeonContext context, RoomNode room, ThemeTileConfig config)
         {
             BoundsInt bounds = room.WorldBounds;
-            int startX = bounds.xMin;
-            int startY = bounds.yMin;
+            
+            // 应用世界偏移
+            int startX = bounds.xMin + context.WorldOffset.x;
+            int startY = bounds.yMin + context.WorldOffset.y;
             int width = bounds.size.x;
             int height = bounds.size.y;
 

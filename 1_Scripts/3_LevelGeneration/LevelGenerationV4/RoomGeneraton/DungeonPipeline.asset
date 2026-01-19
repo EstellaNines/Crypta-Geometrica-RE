@@ -22,7 +22,7 @@ MonoBehaviour:
   - rid: 5106256667760132099
   - rid: 5106256667760132100
   - rid: 5106256667760132102
-  - rid: 5106256667760132103
+  - rid: 5106256679081869312
   - rid: 5106256667760132104
   - rid: 5106256667760132105
   - rid: 5106256667760132106
@@ -77,7 +77,7 @@ MonoBehaviour:
         _enableLogging: 1
         _carveRadius: 4
         _ensureFloor: 1
-        _floorThickness: 2
+        _floorThickness: 1
     - rid: 5106256667760132100
       type: {class: PlatformRule, ns: CryptaGeometrica.LevelGeneration.V4, asm: Assembly-CSharp}
       data:
@@ -104,16 +104,6 @@ MonoBehaviour:
         _autoFix: 1
         _fixPathWidth: 2
         _showPathLog: 0
-    - rid: 5106256667760132103
-      type: {class: WallRenderRule, ns: CryptaGeometrica.LevelGeneration.V4, asm: Assembly-CSharp}
-      data:
-        _ruleName: WallRenderRule
-        _enabled: 1
-        _executionOrder: 105
-        _enableLogging: 1
-        _wallThickness: 2
-        _tileConfig: {fileID: 11400000, guid: 833c2fe8d1aa2864d936eaff7c807dd7, type: 2}
-        _groundTilemap: {fileID: 0}
     - rid: 5106256667760132104
       type: {class: RoomRenderRule, ns: CryptaGeometrica.LevelGeneration.V4, asm: Assembly-CSharp}
       data:
@@ -142,3 +132,12 @@ MonoBehaviour:
         _batchSize: 1000
         _tileConfig: {fileID: 11400000, guid: 833c2fe8d1aa2864d936eaff7c807dd7, type: 2}
         _groundTilemap: {fileID: 0}
+    - rid: 5106256679081869312
+      type: {class: BorderEnforcementRule, ns: CryptaGeometrica.LevelGeneration.V4, asm: Assembly-CSharp}
+      data:
+        _ruleName: BorderEnforcementRule
+        _enabled: 1
+        _executionOrder: 38
+        _enableLogging: 1
+        _borderThickness: 2
+        _doorHalfWidth: 2

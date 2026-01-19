@@ -99,8 +99,8 @@ namespace CryptaGeometrica.LevelGeneration.V4
                 return false;
             }
 
-            // 清空平台层
-            _platformTilemap.ClearAllTiles();
+            // 注意：不再清空整个Tilemap，以支持世界生成器的多房间渲染
+            // 如需清空，应由WorldGenerator或单独的清理规则处理
 
             // 获取瓦片配置（使用Context中的随机主题）
             var config = _tileConfig.GetConfig(context.Theme);
@@ -122,7 +122,10 @@ namespace CryptaGeometrica.LevelGeneration.V4
                     int value = context.GetTile(TilemapLayer.Platform, x, y);
                     if (value == 1)
                     {
-                        _platformTilemap.SetTile(new Vector3Int(x, y, 0), config.PlatformRuleTile);
+                        // 应用世界偏移
+                        int worldX = x + context.WorldOffset.x;
+                        int worldY = y + context.WorldOffset.y;
+                        _platformTilemap.SetTile(new Vector3Int(worldX, worldY, 0), config.PlatformRuleTile);
                         platformCount++;
                     }
                 }
