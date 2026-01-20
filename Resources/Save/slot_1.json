@@ -1,0 +1,32 @@
+﻿{
+    "header": {
+        "version": "1.0.0",
+        "timestamp": "2026-01-20T14:54:47.5323695+08:00",
+        "playTime": 36.29236602783203,
+        "sceneName": "4_Training",
+        "slotIndex": 1
+    },
+    "globalData": {
+        "difficulty": 1,
+        "currentLevel": 1,
+        "currentHearts": 3,
+        "playerGold": 0,
+        "totalKills": 0,
+        "totalDeaths": 0,
+        "tutorialCompleted": false
+    },
+    "pcgData": {
+        "masterSeed": 0,
+        "levelSeeds": [],
+        "metadata": {
+            "keys": [],
+            "values": []
+        },
+        "currentLevelIndex": 0
+    },
+    "entityData": {
+        "keys": [],
+        "values": []
+    },
+    "dynamicObjects": []
+}

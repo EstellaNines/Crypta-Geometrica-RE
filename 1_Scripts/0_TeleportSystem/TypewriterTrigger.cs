@@ -2,19 +2,38 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using System.Collections;
+using System.Collections.Generic;
 
 /// <summary>
 /// 打字机效果触发器
 /// 玩家进入区域后自动播放打字机效果显示文本
+/// 支持多句话分段显示，模拟NPC说话效果
 /// </summary>
 public class TypewriterTrigger : MonoBehaviour
 {
     #region 序列化字段
 
     [Header("文本配置")]
-    [SerializeField] [TextArea(3, 10)] private string displayText = "Welcome to the training area.";
-    [SerializeField] private float typingSpeed = 0.05f;
-    [SerializeField] private float startDelay = 0.3f;
+    [SerializeField]
+    [TextArea(3, 10)]
+    [Tooltip("使用 | 分隔多句话，例如: 你好！|欢迎来到训练区。|祝你好运！")]
+    private string displayText = "你好！|欢迎来到训练区。|祝你好运！";
+
+    [SerializeField]
+    [Tooltip("每个字符的显示间隔（秒），越小越快")]
+    private float typingSpeed = 0.03f;
+
+    [SerializeField]
+    [Tooltip("开始显示前的延迟")]
+    private float startDelay = 0.2f;
+
+    [SerializeField]
+    [Tooltip("每句话之间的停顿时间")]
+    private float sentenceDelay = 0.8f;
+
+    [SerializeField]
+    [Tooltip("句子分隔符")]
+    private char sentenceSeparator = '|';
 
     [Header("UI 引用")]
     [SerializeField] private TextMeshProUGUI targetText;
@@ -29,7 +48,7 @@ public class TypewriterTrigger : MonoBehaviour
     [Header("音效 (可选)")]
     [SerializeField] private AudioSource audioSource;
     [SerializeField] private AudioClip typingSound;
-    [SerializeField] private float soundInterval = 3;
+    [SerializeField] private float soundInterval = 2;
 
     [Header("Gizmo 显示")]
     [SerializeField] private Color gizmoColor = Color.yellow;
@@ -42,6 +61,7 @@ public class TypewriterTrigger : MonoBehaviour
     private bool isTyping = false;
     private Coroutine typingCoroutine;
     private int soundCounter = 0;
+    private List<string> sentences = new List<string>();
 
     #endregion
 
@@ -59,6 +79,9 @@ public class TypewriterTrigger : MonoBehaviour
         {
             targetText.text = "";
         }
+
+        // 解析句子
+        ParseSentences();
     }
 
     #endregion
@@ -102,6 +125,31 @@ public class TypewriterTrigger : MonoBehaviour
 
     #region 私有方法
 
+    /// <summary>
+    /// 解析文本为多个句子
+    /// </summary>
+    private void ParseSentences()
+    {
+        sentences.Clear();
+
+        if (string.IsNullOrEmpty(displayText))
+        {
+            return;
+        }
+
+        string[] parts = displayText.Split(sentenceSeparator);
+        foreach (string part in parts)
+        {
+            string trimmed = part.Trim();
+            if (!string.IsNullOrEmpty(trimmed))
+            {
+                sentences.Add(trimmed);
+            }
+        }
+
+        Debug.Log($"[TypewriterTrigger] 解析出 {sentences.Count} 个句子");
+    }
+
     private void OnPlayerEnter()
     {
         if (playOnce && hasPlayed)
@@ -140,6 +188,9 @@ public class TypewriterTrigger : MonoBehaviour
             StopTypewriter();
         }
 
+        // 重新解析句子（以防运行时修改）
+        ParseSentences();
+
         // 显示容器
         if (textContainer != null)
         {
@@ -160,6 +211,9 @@ public class TypewriterTrigger : MonoBehaviour
         isTyping = false;
     }
 
+    /// <summary>
+    /// 多句话打字机效果协程
+    /// </summary>
     private IEnumerator TypewriterCoroutine()
     {
         isTyping = true;
@@ -174,23 +228,43 @@ public class TypewriterTrigger : MonoBehaviour
         // 开始延迟
         yield return new WaitForSeconds(startDelay);
 
-        // 逐字显示
-        for (int i = 0; i < displayText.Length; i++)
+        // 逐句显示
+        for (int sentenceIndex = 0; sentenceIndex < sentences.Count; sentenceIndex++)
         {
+            string sentence = sentences[sentenceIndex];
+
+            // 清空当前文本（显示新句子）
             if (targetText != null)
             {
-                targetText.text += displayText[i];
+                targetText.text = "";
             }
 
-            // 播放打字音效
-            PlayTypingSound();
+            // 逐字显示当前句子
+            for (int charIndex = 0; charIndex < sentence.Length; charIndex++)
+            {
+                if (targetText != null)
+                {
+                    targetText.text += sentence[charIndex];
+                }
 
-            // 等待
-            yield return new WaitForSeconds(typingSpeed);
+                // 播放打字音效
+                PlayTypingSound();
+
+                // 等待
+                yield return new WaitForSeconds(typingSpeed);
+            }
+
+            Debug.Log($"[TypewriterTrigger] 句子 {sentenceIndex + 1}/{sentences.Count} 完成: {sentence}");
+
+            // 如果不是最后一句，等待后继续下一句
+            if (sentenceIndex < sentences.Count - 1)
+            {
+                yield return new WaitForSeconds(sentenceDelay);
+            }
         }
 
         isTyping = false;
-        Debug.Log($"[TypewriterTrigger] 打字机效果完成: {name}");
+        Debug.Log($"[TypewriterTrigger] 所有句子打字机效果完成: {name}");
     }
 
     private void PlayTypingSound()
@@ -248,7 +322,7 @@ public class TypewriterTrigger : MonoBehaviour
     }
 
     /// <summary>
-    /// 立即显示全部文本
+    /// 立即显示全部文本（显示最后一句）
     /// </summary>
     public void ShowFullText()
     {
@@ -262,8 +336,24 @@ public class TypewriterTrigger : MonoBehaviour
 
         if (targetText != null)
         {
-            targetText.text = displayText;
+            // 显示最后一句话
+            if (sentences.Count > 0)
+            {
+                targetText.text = sentences[sentences.Count - 1];
+            }
+            else
+            {
+                targetText.text = displayText;
+            }
         }
+    }
+
+    /// <summary>
+    /// 获取所有句子列表
+    /// </summary>
+    public List<string> GetSentences()
+    {
+        return new List<string>(sentences);
     }
 
     #endregion
@@ -314,3 +404,4 @@ public class TypewriterTrigger : MonoBehaviour
 
     #endregion
 }
+
