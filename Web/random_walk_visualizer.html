@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>约束醉汉随机游走 - Room Generator V4</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #D32F2F;
+            --secondary: #FFEB3B;
+            --bg-dark: #0f0f23;
+            --bg-card: #1a1a2e;
+            --bg-grid: #16213e;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, var(--bg-dark) 0%, #1a1a2e 100%);
+        }
+        
+        .glass-card {
+            background: rgba(26, 26, 46, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .status-badge {
+            font-family: 'Fira Code', monospace;
+        }
+        
+        .recording-indicator {
+            animation: blink 1s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
+        #record-container {
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 100%);
+        }
+    </style>
+</head>
+<body class="min-h-screen text-white p-8">
+    <!-- This container will be recorded -->
+    <div id="record-container" class="max-w-4xl mx-auto p-6 rounded-2xl">
+        <!-- Header -->
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold mb-2 bg-gradient-to-r from-red-500 to-yellow-400 bg-clip-text text-transparent">
+                约束醉汉随机游走算法
+            </h1>
+            <p class="text-gray-400">Constrained Random Walk - Room Generator V4</p>
+        </header>
+        
+        <!-- Main Canvas Container -->
+        <div class="glass-card rounded-2xl p-8 mb-6">
+            <!-- Canvas for rendering -->
+            <div class="flex justify-center mb-6">
+                <canvas id="grid-canvas" width="400" height="400" class="rounded-lg"></canvas>
+            </div>
+            
+            <!-- Status Display -->
+            <div class="flex justify-center gap-4 mb-4">
+                <div class="status-badge px-4 py-2 rounded-lg bg-gray-800">
+                    步骤: <span id="step-count" class="text-yellow-400 font-bold">0</span>
+                </div>
+                <div class="status-badge px-4 py-2 rounded-lg bg-gray-800">
+                    房间: <span id="room-count" class="text-red-400 font-bold">1</span>/<span id="max-rooms">12</span>
+                </div>
+                <div id="recording-status" class="status-badge px-4 py-2 rounded-lg bg-red-900 hidden">
+                    <span class="recording-indicator">🔴</span> 录制中...
+                </div>
+            </div>
+            
+            <!-- Action Status -->
+            <div id="status-msg" class="text-center text-lg status-badge py-2 text-gray-300">
+                点击 "开始" 运行算法
+            </div>
+        </div>
+        
+        <!-- Legend -->
+        <div class="glass-card rounded-xl p-6 mb-6">
+            <h3 class="text-lg font-semibold mb-4 text-center">图例 Legend</h3>
+            <div class="flex justify-center gap-8 flex-wrap">
+                <div class="flex items-center gap-2">
+                    <div class="w-6 h-6 rounded bg-[#16213e] border border-gray-600"></div>
+                    <span class="text-gray-400">空位 Empty</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-6 h-6 rounded bg-[#D32F2F]"></div>
+                    <span class="text-gray-400">房间 Room</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-6 h-6 rounded bg-[#FFEB3B]"></div>
+                    <span class="text-gray-400">当前位置 Head</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-0 h-0 border-l-8 border-r-8 border-t-[12px] border-l-transparent border-r-transparent border-t-[#D32F2F]"></div>
+                    <span class="text-gray-400">方向箭头</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Algorithm Info -->
+        <div class="glass-card rounded-xl p-6">
+            <h3 class="text-lg font-semibold mb-3 text-center">权重概率 Probability Weights</h3>
+            <div class="grid grid-cols-4 gap-4 text-center">
+                <div class="bg-gray-800 rounded-lg p-3">
+                    <div class="text-2xl">↓</div>
+                    <div class="text-red-400 font-bold">40%</div>
+                    <div class="text-xs text-gray-500">向下 Down</div>
+                </div>
+                <div class="bg-gray-800 rounded-lg p-3">
+                    <div class="text-2xl">←</div>
+                    <div class="text-yellow-400 font-bold">25%</div>
+                    <div class="text-xs text-gray-500">向左 Left</div>
+                </div>
+                <div class="bg-gray-800 rounded-lg p-3">
+                    <div class="text-2xl">→</div>
+                    <div class="text-yellow-400 font-bold">25%</div>
+                    <div class="text-xs text-gray-500">向右 Right</div>
+                </div>
+                <div class="bg-gray-800 rounded-lg p-3">
+                    <div class="text-2xl">↑</div>
+                    <div class="text-gray-500 font-bold">10%</div>
+                    <div class="text-xs text-gray-500">向上 Up</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Controls (outside record container) -->
+    <div class="max-w-4xl mx-auto mt-6">
+        <div class="flex justify-center gap-4 mb-4">
+            <button id="start-btn" onclick="startAnimation()" 
+                    class="px-8 py-3 bg-gradient-to-r from-red-600 to-red-500 rounded-xl font-semibold 
+                           hover:from-red-500 hover:to-red-400 transition-all duration-300 
+                           shadow-lg hover:shadow-red-500/30 cursor-pointer">
+                ▶ 开始
+            </button>
+            <button id="step-btn" onclick="stepOnce()" 
+                    class="px-8 py-3 bg-gray-700 rounded-xl font-semibold 
+                           hover:bg-gray-600 transition-all duration-300 cursor-pointer">
+                → 单步
+            </button>
+            <button id="reset-btn" onclick="resetGrid()" 
+                    class="px-8 py-3 bg-gray-800 rounded-xl font-semibold 
+                           hover:bg-gray-700 transition-all duration-300 cursor-pointer">
+                ↺ 重置
+            </button>
+        </div>
+        
+        <!-- Recording Controls -->
+        <div class="flex justify-center gap-4 mb-8">
+            <button id="record-btn" onclick="startRecording()" 
+                    class="px-8 py-3 bg-gradient-to-r from-purple-600 to-pink-500 rounded-xl font-semibold 
+                           hover:from-purple-500 hover:to-pink-400 transition-all duration-300 
+                           shadow-lg hover:shadow-purple-500/30 cursor-pointer">
+                🎥 录制完整界面
+            </button>
+            <button id="stop-record-btn" onclick="stopRecording()" disabled
+                    class="px-8 py-3 bg-gray-600 rounded-xl font-semibold cursor-not-allowed opacity-50">
+                ⏹ 停止录制
+            </button>
+        </div>
+        
+        <p class="text-center text-gray-500 text-sm">录制将包含：网格动画 + 图例 + 权重说明</p>
+    </div>
+    
+    <script>
+        // Configuration
+        const WIDTH = 4;
+        const HEIGHT = 4;
+        const MAX_ROOMS = 12;
+        const ANIMATION_SPEED = 500;
+        const CELL_SIZE = 90;
+        const PADDING = 20;
+        
+        // Canvas setup
+        const canvas = document.getElementById('grid-canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Recording variables
+        let recordedFrames = [];
+        let isRecording = false;
+        let recordingCanvas = null;
+        let recordingCtx = null;
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        
+        // State
+        let grid = [];
+        let rooms = [];
+        let currentPos = { x: Math.floor(WIDTH / 2), y: 0 };
+        let lastDirection = null;
+        let stepCount = 0;
+        let finished = false;
+        let animationInterval = null;
+        
+        // Directions with weights
+        const MOVES = [
+            { dx: 0, dy: -1, name: 'Up', weight: 0.1 },
+            { dx: 1, dy: 0, name: 'Right', weight: 0.25 },
+            { dx: 0, dy: 1, name: 'Down', weight: 0.4 },
+            { dx: -1, dy: 0, name: 'Left', weight: 0.25 }
+        ];
+        
+        // Colors
+        const COLORS = {
+            bg: '#1a1a2e',
+            empty: '#16213e',
+            room: '#D32F2F',
+            head: '#FFEB3B',
+            grid: '#ffffff',
+            text: '#ffffff'
+        };
+        
+        // Initialize grid
+        function initGrid() {
+            grid = Array(HEIGHT).fill(null).map(() => Array(WIDTH).fill(0));
+            rooms = [];
+            currentPos = { x: Math.floor(WIDTH / 2), y: 0 };
+            lastDirection = null;
+            stepCount = 0;
+            finished = false;
+            
+            grid[currentPos.y][currentPos.x] = 2;
+            rooms.push({ ...currentPos });
+            
+            renderCanvas();
+            updateStatus("点击 '开始' 运行算法");
+        }
+        
+        // Render to Canvas
+        function renderCanvas() {
+            ctx.fillStyle = COLORS.bg;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            for (let y = 0; y < HEIGHT; y++) {
+                for (let x = 0; x < WIDTH; x++) {
+                    const cellX = PADDING + x * CELL_SIZE;
+                    const cellY = PADDING + y * CELL_SIZE;
+                    
+                    if (grid[y][x] === 0) {
+                        ctx.fillStyle = COLORS.empty;
+                    } else if (grid[y][x] === 1) {
+                        ctx.fillStyle = COLORS.room;
+                    } else if (grid[y][x] === 2) {
+                        ctx.fillStyle = COLORS.head;
+                    }
+                    
+                    ctx.fillRect(cellX, cellY, CELL_SIZE - 4, CELL_SIZE - 4);
+                    
+                    if (grid[y][x] === 2 && lastDirection) {
+                        drawArrow(cellX, cellY, lastDirection);
+                    }
+                    
+                    if (x === Math.floor(WIDTH / 2) && y === 0) {
+                        ctx.fillStyle = COLORS.text;
+                        ctx.font = 'bold 12px Inter';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('ENTRANCE', cellX + (CELL_SIZE - 4) / 2, cellY + (CELL_SIZE - 4) / 2 + 4);
+                    }
+                }
+            }
+            
+            ctx.strokeStyle = COLORS.grid;
+            ctx.lineWidth = 2;
+            for (let i = 0; i <= WIDTH; i++) {
+                ctx.beginPath();
+                ctx.moveTo(PADDING + i * CELL_SIZE - 2, PADDING - 2);
+                ctx.lineTo(PADDING + i * CELL_SIZE - 2, PADDING + HEIGHT * CELL_SIZE - 2);
+                ctx.stroke();
+            }
+            for (let i = 0; i <= HEIGHT; i++) {
+                ctx.beginPath();
+                ctx.moveTo(PADDING - 2, PADDING + i * CELL_SIZE - 2);
+                ctx.lineTo(PADDING + WIDTH * CELL_SIZE - 2, PADDING + i * CELL_SIZE - 2);
+                ctx.stroke();
+            }
+            
+            document.getElementById('step-count').textContent = stepCount;
+            document.getElementById('room-count').textContent = rooms.length;
+            
+            // Capture frame if recording
+            if (isRecording) {
+                captureFrame();
+            }
+        }
+        
+        function drawArrow(cellX, cellY, direction) {
+            const centerX = cellX + (CELL_SIZE - 4) / 2;
+            const centerY = cellY + (CELL_SIZE - 4) / 2;
+            const size = 15;
+            
+            ctx.fillStyle = COLORS.room;
+            ctx.beginPath();
+            
+            let offsetX = direction.dx >= 0 ? 25 : -25;
+            let offsetY = direction.dy >= 0 ? 25 : -25;
+            const arrowX = centerX + offsetX;
+            const arrowY = centerY + offsetY;
+            
+            if (direction.dx === 0 && direction.dy === 1) {
+                ctx.moveTo(arrowX - size, arrowY - size);
+                ctx.lineTo(arrowX + size, arrowY - size);
+                ctx.lineTo(arrowX, arrowY + size);
+            } else if (direction.dx === 0 && direction.dy === -1) {
+                ctx.moveTo(arrowX - size, arrowY + size);
+                ctx.lineTo(arrowX + size, arrowY + size);
+                ctx.lineTo(arrowX, arrowY - size);
+            } else if (direction.dx === 1 && direction.dy === 0) {
+                ctx.moveTo(arrowX - size, arrowY - size);
+                ctx.lineTo(arrowX - size, arrowY + size);
+                ctx.lineTo(arrowX + size, arrowY);
+            } else if (direction.dx === -1 && direction.dy === 0) {
+                ctx.moveTo(arrowX + size, arrowY - size);
+                ctx.lineTo(arrowX + size, arrowY + size);
+                ctx.lineTo(arrowX - size, arrowY);
+            }
+            
+            ctx.closePath();
+            ctx.fill();
+        }
+        
+        function getWeightedDirection() {
+            const r = Math.random();
+            let cumulative = 0;
+            for (const move of MOVES) {
+                cumulative += move.weight;
+                if (r < cumulative) return move;
+            }
+            return MOVES[2];
+        }
+        
+        function isValid(x, y) {
+            return x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT;
+        }
+        
+        function smartBacktrack() {
+            const shuffled = [...rooms].sort(() => Math.random() - 0.5);
+            for (const room of shuffled) {
+                for (const move of MOVES) {
+                    const nx = room.x + move.dx;
+                    const ny = room.y + move.dy;
+                    if (isValid(nx, ny) && grid[ny][nx] === 0) {
+                        return { start: room, target: { x: nx, y: ny }, direction: move };
+                    }
+                }
+            }
+            return null;
+        }
+        
+        function step() {
+            if (finished) return;
+            
+            if (rooms.length >= MAX_ROOMS) {
+                finished = true;
+                grid[currentPos.y][currentPos.x] = 1;
+                lastDirection = null;
+                updateStatus(`完成! 生成了 ${rooms.length} 个房间`);
+                renderCanvas();
+                return;
+            }
+            
+            stepCount++;
+            
+            const move = getWeightedDirection();
+            const nx = currentPos.x + move.dx;
+            const ny = currentPos.y + move.dy;
+            
+            if (isValid(nx, ny) && grid[ny][nx] === 0) {
+                grid[currentPos.y][currentPos.x] = 1;
+                currentPos = { x: nx, y: ny };
+                grid[ny][nx] = 2;
+                rooms.push({ ...currentPos });
+                lastDirection = move;
+                updateStatus(`移动 ${move.name}`);
+            } else {
+                let isDeadEnd = true;
+                for (const m of MOVES) {
+                    const nnx = currentPos.x + m.dx;
+                    const nny = currentPos.y + m.dy;
+                    if (isValid(nnx, nny) && grid[nny][nnx] === 0) {
+                        isDeadEnd = false;
+                        break;
+                    }
+                }
+                
+                if (isDeadEnd) {
+                    const backtrack = smartBacktrack();
+                    if (backtrack) {
+                        grid[currentPos.y][currentPos.x] = 1;
+                        currentPos = backtrack.target;
+                        grid[currentPos.y][currentPos.x] = 2;
+                        rooms.push({ ...currentPos });
+                        lastDirection = backtrack.direction;
+                        updateStatus(`智能回溯! →(${currentPos.x},${currentPos.y})`);
+                    } else {
+                        finished = true;
+                        updateStatus("无可用位置，结束");
+                    }
+                } else {
+                    updateStatus(`被阻挡 (${move.name})`);
+                }
+            }
+            
+            renderCanvas();
+        }
+        
+        function updateStatus(msg) {
+            document.getElementById('status-msg').textContent = msg;
+        }
+        
+        function startAnimation() {
+            if (animationInterval) {
+                clearInterval(animationInterval);
+                animationInterval = null;
+                document.getElementById('start-btn').textContent = '▶ 开始';
+                return;
+            }
+            
+            document.getElementById('start-btn').textContent = '⏸ 暂停';
+            animationInterval = setInterval(() => {
+                if (finished) {
+                    clearInterval(animationInterval);
+                    animationInterval = null;
+                    document.getElementById('start-btn').textContent = '▶ 开始';
+                    if (isRecording) {
+                        // Wait a bit then stop recording
+                        setTimeout(() => stopRecording(), 1000);
+                    }
+                    return;
+                }
+                step();
+            }, ANIMATION_SPEED);
+        }
+        
+        function stepOnce() {
+            if (animationInterval) {
+                clearInterval(animationInterval);
+                animationInterval = null;
+                document.getElementById('start-btn').textContent = '▶ 开始';
+            }
+            step();
+        }
+        
+        function resetGrid() {
+            if (animationInterval) {
+                clearInterval(animationInterval);
+                animationInterval = null;
+                document.getElementById('start-btn').textContent = '▶ 开始';
+            }
+            initGrid();
+        }
+        
+        // ============ HD HIGH-QUALITY RECORDING ============
+        const HD_SCALE = 2;
+        const TARGET_FPS = 60;
+        const BITRATE = 8000000;
+        
+        async function captureFrame() {
+            try {
+                const container = document.getElementById('record-container');
+                const frameCanvas = await html2canvas(container, {
+                    backgroundColor: '#0f0f23',
+                    scale: HD_SCALE,
+                    useCORS: true,
+                    logging: false
+                });
+                if (recordingCtx) {
+                    recordingCtx.drawImage(frameCanvas, 0, 0, recordingCanvas.width, recordingCanvas.height);
+                }
+            } catch (e) { console.error(e); }
+        }
+        
+        function getMimeType() {
+            const types = ['video/mp4;codecs=avc1.42E01E', 'video/mp4', 'video/webm;codecs=h264', 'video/webm;codecs=vp9', 'video/webm'];
+            for (const type of types) {
+                if (MediaRecorder.isTypeSupported(type)) return type;
+            }
+            return 'video/webm';
+        }
+        
+        async function startRecording() {
+            resetGrid();
+            
+            const container = document.getElementById('record-container');
+            const rect = container.getBoundingClientRect();
+            
+            recordingCanvas = document.createElement('canvas');
+            recordingCanvas.width = Math.floor(rect.width * HD_SCALE);
+            recordingCanvas.height = Math.floor(rect.height * HD_SCALE);
+            recordingCtx = recordingCanvas.getContext('2d');
+            
+            recordedChunks = [];
+            const stream = recordingCanvas.captureStream(TARGET_FPS);
+            const mimeType = getMimeType();
+            
+            mediaRecorder = new MediaRecorder(stream, {
+                mimeType: mimeType,
+                videoBitsPerSecond: BITRATE
+            });
+            
+            mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+            mediaRecorder.onstop = () => {
+                const isMP4 = mimeType.includes('mp4');
+                const blob = new Blob(recordedChunks, { type: mimeType });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = isMP4 ? 'random_walk_HD.mp4' : 'random_walk_HD.webm';
+                a.click();
+                
+                document.getElementById('recording-status').classList.add('hidden');
+                document.getElementById('record-btn').disabled = false;
+                document.getElementById('record-btn').classList.remove('opacity-50', 'cursor-not-allowed');
+                document.getElementById('stop-record-btn').disabled = true;
+                document.getElementById('stop-record-btn').classList.add('opacity-50', 'cursor-not-allowed');
+                isRecording = false;
+                recordingCanvas = null;
+                recordingCtx = null;
+            };
+            
+            mediaRecorder.start(50);
+            isRecording = true;
+            
+            document.getElementById('recording-status').classList.remove('hidden');
+            document.getElementById('record-btn').disabled = true;
+            document.getElementById('record-btn').classList.add('opacity-50', 'cursor-not-allowed');
+            document.getElementById('stop-record-btn').disabled = false;
+            document.getElementById('stop-record-btn').classList.remove('opacity-50', 'cursor-not-allowed');
+            
+            await captureFrame();
+            setTimeout(() => startAnimation(), 500);
+        }
+        
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+        }
+        
+        // Initialize
+        initGrid();
+    </script>
+</body>
+</html>
