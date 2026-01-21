@@ -350,3 +350,470 @@ public class MyCustomRule : GeneratorRuleBase
     }
 }
 ```
+
+---
+
+## 核心组件
+
+### 1. DungeonGenerator（地牢生成器）
+
+**位置**: `Core/DungeonGenerator.cs`
+
+地牢生成的主控制器，负责：
+
+- 初始化生成上下文 (`DungeonContext`)
+- 按顺序执行管线中的所有规则
+- 管理生成生命周期（开始/取消/清理）
+- 支持自动重试机制
+
+**关键字段**:
+
+| 字段                | 类型              | 描述             |
+| ------------------- | ----------------- | ---------------- |
+| `_pipeline`         | DungeonPipelineData | 管线配置资产     |
+| `_seed`             | int               | 随机种子（-1表示系统时间） |
+| `_maxRetryCount`    | int               | 生成失败时最大重试次数 |
+| `_backgroundTilemap`| Tilemap           | 背景层 Tilemap   |
+| `_groundTilemap`    | Tilemap           | 地面层 Tilemap   |
+| `_platformTilemap`  | Tilemap           | 平台层 Tilemap   |
+| `_tileConfig`       | TileConfigData    | 瓦片配置数据     |
+
+**关键事件**:
+
+| 事件                  | 签名                    | 描述             |
+| --------------------- | ----------------------- | ---------------- |
+| `OnGenerationStarted` | `Action<int>`           | 生成开始（参数为种子） |
+| `OnGenerationCompleted`| `Action<bool>`         | 生成完成（参数为是否成功） |
+| `OnRuleExecuted`      | `Action<string, bool>`  | 规则执行完毕（规则名，是否成功） |
+
+### 2. DungeonContext（地牢上下文）
+
+**位置**: `Core/DungeonContext.cs`
+
+基于 **黑板模式 (Blackboard Pattern)** 的共享数据容器。所有规则通过此对象共享和传递数据，实现规则之间的解耦。
+
+**配置数据**:
+
+| 属性            | 类型              | 描述                      |
+| --------------- | ----------------- | ------------------------- |
+| `RNG`           | System.Random     | 随机数生成器              |
+| `Seed`          | int               | 随机种子                  |
+| `Token`         | CancellationToken | 取消令牌                  |
+| `GridColumns`   | int               | 网格列数                  |
+| `GridRows`      | int               | 网格行数                  |
+| `RoomSize`      | Vector2Int        | 单房间像素尺寸            |
+| `WorldOffset`   | Vector2Int        | 世界坐标偏移（多房间渲染） |
+
+**宏观层数据**:
+
+| 属性              | 类型                  | 描述                      |
+| ----------------- | --------------------- | ------------------------- |
+| `RoomNodes`       | List\<RoomNode\>      | 房间节点列表              |
+| `AdjacencyMatrix` | int[,]                | 邻接矩阵                  |
+| `StartRoom`       | Vector2Int            | 起始房间坐标              |
+| `EndRoom`         | Vector2Int            | 终点房间坐标              |
+| `CriticalPath`    | HashSet\<Vector2Int\> | 关键路径集合              |
+
+**微观层数据**:
+
+| 属性               | 类型   | 描述                                |
+| ------------------ | ------ | ----------------------------------- |
+| `BackgroundTileData`| int[] | 背景层瓦片数据（一维扁平化）        |
+| `GroundTileData`   | int[]  | 地面层瓦片数据（一维扁平化）        |
+| `PlatformTileData` | int[]  | 平台层瓦片数据（一维扁平化）        |
+| `MapWidth`         | int    | 地图总宽度（像素）                  |
+| `MapHeight`        | int    | 地图总高度（像素）                  |
+
+**内存布局优化**:
+
+使用一维 `int[]` 代替二维数组，索引公式为：
+$$index = y \times MapWidth + x$$
+
+这种设计带来的优势：
+- **零 GC Alloc**: 避免对象数组的装箱开销
+- **缓存友好**: 连续内存布局提高 CPU 缓存命中率
+
+### 3. DungeonPipelineData（管线配置）
+
+**位置**: `Core/DungeonPipelineData.cs`
+
+`ScriptableObject` 资产，存储管线的所有配置和规则列表。
+
+**配置项**:
+
+| 属性            | 类型                    | 描述                  |
+| --------------- | ----------------------- | --------------------- |
+| `GridColumns`   | int                     | 网格列数 (2-10)       |
+| `GridRows`      | int                     | 网格行数 (2-10)       |
+| `RoomSize`      | Vector2Int              | 单房间像素尺寸        |
+| `Rules`         | List\<IGeneratorRule\>  | 规则列表              |
+| `EnableLogging` | bool                    | 是否启用日志          |
+| `EnableVisualization` | bool              | 是否启用可视化调试    |
+
+**计算属性**:
+
+| 属性          | 公式                          | 描述             |
+| ------------- | ----------------------------- | ---------------- |
+| `TotalWidth`  | GridColumns × RoomSize.x      | 地图总宽度       |
+| `TotalHeight` | GridRows × RoomSize.y         | 地图总高度       |
+| `TotalRooms`  | GridColumns × GridRows        | 总房间格子数     |
+
+---
+
+## 规则管线
+
+### 规则接口与基类
+
+**IGeneratorRule 接口**:
+
+```csharp
+public interface IGeneratorRule
+{
+    string RuleName { get; }           // 规则名称
+    bool Enabled { get; set; }         // 是否启用
+    int ExecutionOrder { get; }        // 执行顺序（越小越先）
+    
+    UniTask<bool> ExecuteAsync(DungeonContext context, CancellationToken token);
+    bool Validate(out string errorMessage);
+}
+```
+
+**GeneratorRuleBase 基类**:
+
+提供通用功能：
+- 序列化字段（规则名、启用状态、执行顺序）
+- 日志辅助方法（`LogInfo`, `LogWarning`, `LogError`）
+- 默认的 `Validate` 实现
+
+### 规则执行流程
+
+```mermaid
+sequenceDiagram
+    participant DG as DungeonGenerator
+    participant PD as PipelineData
+    participant CTX as DungeonContext
+    participant Rule as IGeneratorRule
+
+    DG->>PD: GetEnabledRules()
+    PD-->>DG: 按 ExecutionOrder 排序的规则列表
+    DG->>CTX: 创建上下文（种子、尺寸）
+
+    loop 遍历每个规则
+        DG->>Rule: Validate()
+        alt 验证失败
+            Rule-->>DG: false + errorMessage
+            DG->>DG: 终止生成
+        else 验证通过
+            DG->>Rule: ExecuteAsync(context, token)
+            alt 执行成功
+                Rule-->>DG: true
+            else 执行失败
+                Rule-->>DG: false
+                DG->>DG: 触发重试机制
+            end
+        end
+    end
+```
+
+### 完整规则执行顺序
+
+```mermaid
+graph LR
+    subgraph 宏观规则 Macro
+        M1[ConstrainedLayoutRule<br/>Order: 10] --> M2[BFSValidationRule<br/>Order: 20]
+    end
+
+    subgraph 微观规则 Micro
+        M2 --> C1[CellularAutomataRule<br/>Order: 30]
+        C1 --> C2[PathValidationRule<br/>Order: 35]
+        C2 --> C3[PlatformRule<br/>Order: 40]
+        C3 --> C4[BorderEnforcementRule<br/>Order: 50]
+        C4 --> C5[EntranceExitRule<br/>Order: 60]
+    end
+
+    subgraph 渲染规则 Rendering
+        C5 --> R1[RoomRenderRule<br/>Order: 100]
+        R1 --> R2[GroundRenderRule<br/>Order: 110]
+        R2 --> R3[PlatformRenderRule<br/>Order: 120]
+    end
+
+    style M1 fill:#e3f2fd
+    style M2 fill:#e3f2fd
+    style C1 fill:#fff3e0
+    style C2 fill:#fff3e0
+    style C3 fill:#fff3e0
+    style C4 fill:#fff3e0
+    style C5 fill:#fff3e0
+    style R1 fill:#e8f5e9
+    style R2 fill:#e8f5e9
+    style R3 fill:#e8f5e9
+```
+
+---
+
+## 其他核心算法详解
+
+### 7. BFS连通性验证 (BFS Validation)
+
+**规则类**: `BFSValidationRule` (`Rules/Macro`)
+
+验证起点到终点的连通性，并标记关键路径。
+
+#### 算法步骤
+
+1. **BFS遍历**: 从起点开始广度优先搜索
+2. **路径记录**: 使用 `parent` 字典记录每个节点的前驱
+3. **连通性判断**: 检查终点是否被访问
+4. **关键路径标记**: 从终点回溯到起点，标记所有经过的房间为 `IsCritical = true`
+
+#### 可选功能：环路创建
+
+通过 `_enableLoopCreation` 参数可以在关键路径之外创建额外连接，增加地图多样性。
+
+```mermaid
+graph TD
+    Start[起点房间] --> BFS[BFS遍历]
+    BFS --> Found{找到终点?}
+    Found -->|是| Trace[回溯标记关键路径]
+    Found -->|否| Fail[返回失败]
+    Trace --> Loop{启用环路?}
+    Loop -->|是| Extra[创建额外连接]
+    Loop -->|否| Done[完成]
+    Extra --> Done
+```
+
+---
+
+### 8. 路径验证规则 (Path Validation)
+
+**规则类**: `PathValidationRule` (`Rules/Micro`)
+
+确保生成的地形中存在从入口到出口的可通行路径。
+
+#### 验证逻辑
+
+1. 对每个房间执行**洪水填充 (Flood Fill)**
+2. 检查房间的所有门位置是否在同一个连通区域内
+3. 如果不连通，执行 **通道挖掘** 算法连接孤立区域
+
+---
+
+### 9. 入口出口规则 (Entrance/Exit Rule)
+
+**规则类**: `EntranceExitRule` (`Rules/Micro`)
+
+处理关卡入口和出口的特殊生成逻辑。
+
+#### 功能
+
+- 在起始房间的指定侧面（Left/Right）挖掘入口通道
+- 在终点房间的指定侧面挖掘出口通道
+- 确保通道宽度足够玩家通过
+- 在入口/出口位置放置特殊标记瓦片
+
+---
+
+## 渲染规则详解
+
+渲染规则负责将内存中的瓦片数据 (`int[]`) 转换为 Unity Tilemap 中的实际 `Tile` 对象。
+
+### RoomRenderRule
+
+**执行顺序**: 100
+
+渲染背景层（BackgroundTileData）。
+
+### GroundRenderRule
+
+**执行顺序**: 110
+
+渲染地面层（GroundTileData）。
+
+**关键特性**:
+- **批量渲染**: 使用 `_batchSize` 参数控制每次批量设置的瓦片数量
+- **主题支持**: 根据 `context.Theme` 选择对应的规则瓦片
+- **世界偏移**: 应用 `context.WorldOffset` 支持多房间渲染
+
+### PlatformRenderRule
+
+**执行顺序**: 120
+
+渲染平台层（PlatformTileData）。
+
+---
+
+## 配置指南
+
+### 1. 创建管线配置
+
+1. 右键 Project 窗口
+2. Create → **Crypta Geometrica:RE/PCG程序化关卡/V4/Dungeon Pipeline**
+3. 配置基础参数：
+   - Grid Columns: 水平房间数 (推荐 4)
+   - Grid Rows: 垂直房间数 (推荐 4)
+   - Room Size: 单房间像素尺寸 (推荐 64×64)
+
+### 2. 添加生成规则
+
+按顺序添加以下规则：
+
+| 顺序 | 规则类型              | 类别 | 作用                   |
+| ---- | --------------------- | ---- | ---------------------- |
+| 10   | ConstrainedLayoutRule | 宏观 | 约束醉汉游走生成布局   |
+| 20   | BFSValidationRule     | 宏观 | 验证连通性，标记关键路径 |
+| 30   | CellularAutomataRule  | 微观 | 细胞自动机生成地形     |
+| 35   | PathValidationRule    | 微观 | 验证路径可通行性       |
+| 40   | PlatformRule          | 微观 | 智能平台生成           |
+| 50   | BorderEnforcementRule | 微观 | 边界强制与门保护       |
+| 60   | EntranceExitRule      | 微观 | 入口出口处理           |
+| 100  | RoomRenderRule        | 渲染 | 背景层渲染             |
+| 110  | GroundRenderRule      | 渲染 | 地面层渲染             |
+| 120  | PlatformRenderRule    | 渲染 | 平台层渲染             |
+
+### 3. 场景设置
+
+1. 创建空 GameObject，添加 `DungeonGenerator` 组件
+2. 拖拽管线配置到 **Pipeline Data** 字段
+3. 设置 Tilemap 引用（可使用"自动查找所有引用"按钮）
+4. 设置瓦片配置数据 (`TileConfigData`)
+5. 点击 **生成地牢** 按钮测试
+
+### 4. 参数调优建议
+
+| 参数               | 推荐值      | 说明                           |
+| ------------------ | ----------- | ------------------------------ |
+| 最大游走步数       | 15-20       | 越大房间数越多                 |
+| 向下偏移权重       | 0.4         | 控制地牢垂直延展倾向           |
+| CA迭代次数         | 6-8         | 越多地形越平滑                 |
+| 初始填充率         | 0.42-0.48   | 控制洞穴密度                   |
+| 玩家跳跃高度       | 8           | 需与游戏实际跳跃能力匹配       |
+| 平台最小水平间距   | 4-5         | 防止平台过于密集               |
+
+---
+
+## 附录
+
+### 文件结构
+
+```
+RoomGeneraton/
+├── Core/
+│   ├── DungeonGenerator.cs      # 主控制器
+│   ├── DungeonContext.cs        # 上下文（黑板）
+│   └── DungeonPipelineData.cs   # 管线配置
+├── Data/
+│   ├── RoomNode.cs              # 房间节点数据
+│   ├── RoomType.cs              # 房间类型枚举
+│   ├── SpawnCommand.cs          # 生成指令
+│   ├── TileConfigData.cs        # 瓦片配置数据
+│   └── TileId.cs                # 瓦片ID枚举
+├── Rules/
+│   ├── Abstractions/
+│   │   ├── IGeneratorRule.cs    # 规则接口
+│   │   └── GeneratorRuleBase.cs # 规则基类
+│   ├── Macro/
+│   │   ├── ConstrainedLayoutRule.cs  # 约束布局
+│   │   └── BFSValidationRule.cs      # BFS验证
+│   ├── Micro/
+│   │   ├── CellularAutomataRule.cs   # 细胞自动机
+│   │   ├── PlatformRule.cs           # 平台生成
+│   │   ├── BorderEnforcementRule.cs  # 边界强制
+│   │   ├── EntranceExitRule.cs       # 入口出口
+│   │   └── PathValidationRule.cs     # 路径验证
+│   ├── Rendering/
+│   │   ├── RoomRenderRule.cs         # 背景渲染
+│   │   ├── GroundRenderRule.cs       # 地面渲染
+│   │   └── PlatformRenderRule.cs     # 平台渲染
+│   └── Content/
+│       └── (敌人/道具生成规则)
+├── Utilities/
+│   └── TilemapFinder.cs         # Tilemap自动查找工具
+├── Editor/
+│   └── (编辑器扩展)
+└── docs/
+    └── RoomGenerator_TechnicalPaper.md  # 本文档
+```
+
+### 枚举定义
+
+**RoomType**:
+```csharp
+public enum RoomType
+{
+    Normal,   // 普通房间
+    Start,    // 起始房间（关卡入口）
+    End       // 终点房间（关卡出口）
+}
+```
+
+**WallDirection**:
+```csharp
+public enum WallDirection
+{
+    None,
+    Left,
+    Right,
+    Top,
+    Bottom
+}
+```
+
+**LevelDoorType**:
+```csharp
+public enum LevelDoorType
+{
+    None,          // 无特殊门
+    LevelEntrance, // 关卡入口
+    LevelExit      // 关卡出口
+}
+```
+
+**TilemapLayer**:
+```csharp
+public enum TilemapLayer
+{
+    Background = 0,  // 背景层
+    Ground = 1,      // 地面层
+    Platform = 2,    // 平台层
+    Decoration = 3   // 装饰层
+}
+```
+
+**TileTheme**:
+```csharp
+public enum TileTheme
+{
+    Blue,    // 蓝色主题
+    Red,     // 红色主题
+    Yellow   // 黄色主题
+}
+```
+
+---
+
+## 与世界生成器的集成
+
+房间生成器V4设计为可独立使用，也可被 **世界生成器V4** 调用进行多房间世界生成。
+
+### 集成要点
+
+1. **WorldOffset 参数**: 世界生成器通过 `context.WorldOffset` 传递像素偏移，使房间内容渲染到正确位置
+2. **独立上下文**: 每个房间使用独立的 `DungeonContext`，互不干扰
+3. **串行执行**: 当前版本为稳定性考虑，多房间按顺序生成
+
+### 调用流程
+
+```mermaid
+sequenceDiagram
+    participant WG as WorldGenerator
+    participant WN as WorldNode
+    participant DG as DungeonGenerator
+
+    loop 对每个 WorldNode
+        WG->>WN: 获取 WorldPixelOffset
+        WG->>DG: GenerateDungeonAsync(seed, offset)
+        DG->>DG: 创建 Context (WorldOffset = offset)
+        DG->>DG: 执行管线规则
+        DG-->>WG: 返回成功/失败
+    end
+```

@@ -323,6 +323,141 @@ sequenceDiagram
 3. 拖拽 DungeonGenerator 引用
 4. 点击 "生成世界" 按钮
 
+### 4. 参数调优建议
+
+| 参数            | 推荐值    | 说明                                   |
+| --------------- | --------- | -------------------------------------- |
+| 目标房间数量    | 4-8       | 决定网格大小为 (N-1)×(N-1)             |
+| 生成阈值        | 0.4-0.6   | 越低房间越分散，越高越密集             |
+| 最大尝试次数    | 100       | 单轮放置的最大尝试次数                 |
+| 最大轮次        | 50        | 整体放置的最大轮次                     |
+| 生成失败重试    | 开启      | 建议开启以提高生成成功率               |
+| 最大重试次数    | 3         | 单个房间生成失败时的重试次数           |
+| 生成间隔帧数    | 1         | 每个房间生成后等待帧数，避免UI卡顿     |
+
+---
+
+## 核心组件详解
+
+### WorldGenerator 事件系统
+
+| 事件                    | 签名                     | 描述                           |
+| ----------------------- | ------------------------ | ------------------------------ |
+| `OnGenerationStarted`   | `Action`                 | 生成开始时触发                 |
+| `OnGenerationCompleted` | `Action<bool>`           | 生成完成时触发（参数为是否成功） |
+| `OnGenerationProgress`  | `Action<int, int>`       | 规则执行进度（当前索引，总数） |
+
+### WorldContext 关键方法
+
+| 方法              | 签名                                      | 描述                      |
+| ----------------- | ----------------------------------------- | ------------------------- |
+| `IsInBounds`      | `bool IsInBounds(Vector2Int pos)`         | 检查坐标是否在网格边界内  |
+| `IsOccupied`      | `bool IsOccupied(Vector2Int pos)`         | 检查网格位置是否被占用    |
+| `SetOccupied`     | `void SetOccupied(Vector2Int pos, bool)`  | 设置网格位置占用状态      |
+| `AddNode`         | `void AddNode(WorldNode node)`            | 添加世界节点并标记占用    |
+| `NextRandomFloat` | `float NextRandomFloat()`                 | 获取 [0,1) 随机浮点数     |
+| `NextRandomInt`   | `int NextRandomInt(int max)`              | 获取 [0,max) 随机整数     |
+| `Reset`           | `void Reset(int newSeed = -1)`            | 重置上下文状态            |
+| `Dispose`         | `void Dispose()`                          | 释放资源                  |
+
+### WorldNode 数据结构
+
+**位置**: `Data/WorldNode.cs`
+
+表示世界网格中的一个房间节点。
+
+| 属性                 | 类型         | 描述                           |
+| -------------------- | ------------ | ------------------------------ |
+| `GridPosition`       | Vector2Int   | 网格坐标 (0~GridSize-1)        |
+| `WorldPixelOffset`   | Vector2Int   | 世界像素偏移量                 |
+| `RoomSeed`           | int          | 房间生成种子                   |
+| `IsGenerated`        | bool         | 是否已生成房间                 |
+| `EntrancePosition`   | Vector2Int   | 入口像素位置（世界坐标）       |
+| `ExitPosition`       | Vector2Int   | 出口像素位置（世界坐标）       |
+| `HasEntranceExitData`| bool         | 是否有有效的出入口数据         |
+
+**坐标计算公式**:
+
+$$WorldPixelOffset = GridPosition \times RoomPixelSize$$
+
+---
+
+## 与房间生成器的集成
+
+世界生成器V4与房间生成器V4采用**嵌套调用**模式：
+
+```mermaid
+sequenceDiagram
+    participant WG as WorldGenerator
+    participant WC as WorldContext
+    participant WN as WorldNode
+    participant DG as DungeonGenerator
+    participant DC as DungeonContext
+
+    WG->>WC: 创建上下文 (RoomCount, RoomPixelSize, Seed)
+    WG->>WG: 执行 RandomPlacementRule
+    Note over WG: 生成 N 个 WorldNode
+
+    WG->>WG: 执行 CoordinateCalcRule
+    Note over WG: 计算每个节点的 WorldPixelOffset
+
+    loop 对每个 WorldNode
+        WG->>WN: 获取 (RoomSeed, WorldPixelOffset)
+        WG->>DG: GenerateDungeonAsync(seed, offset)
+        DG->>DC: 创建上下文 (WorldOffset = offset)
+        DG->>DG: 执行房间规则管线
+        DG-->>WG: 返回成功/失败
+        WG->>WN: 提取 Entrance/Exit 位置
+        WG->>WN: 标记 IsGenerated = true
+    end
+```
+
+### 集成要点
+
+1. **WorldOffset 传递**: `RoomGenerationRule` 将 `WorldNode.WorldPixelOffset` 传递给 `DungeonGenerator.GenerateDungeonAsync(seed, offset)`
+2. **种子隔离**: 每个房间使用独立的 `RoomSeed`，确保可复现性
+3. **出入口提取**: 生成完成后，从 `DungeonContext.RoomNodes` 中提取起点/终点房间的门位置，转换为世界坐标存储
+4. **重试机制**: 单个房间生成失败时，更换种子重试
+
+---
+
+## 调试功能
+
+### Gizmos 可视化
+
+`WorldGenerator` 提供 Scene 视图的 Gizmos 绘制功能：
+
+| 元素     | 颜色（默认） | 描述               |
+| -------- | ------------ | ------------------ |
+| 网格线   | 绿色半透明   | 显示网格边界       |
+| 房间块   | 蓝色半透明   | 已放置的房间位置   |
+| 房间序号 | 白色         | 房间生成顺序       |
+| 入口标记 | 绿色         | 十字准星 + "IN"    |
+| 出口标记 | 黄色         | 十字准星 + "OUT"   |
+
+**配置项**:
+
+| 字段            | 类型  | 描述           |
+| --------------- | ----- | -------------- |
+| `_drawGizmos`   | bool  | 是否绘制Gizmos |
+| `_gridColor`    | Color | 网格颜色       |
+| `_roomColor`    | Color | 房间块颜色     |
+| `_entranceColor`| Color | 入口标记颜色   |
+| `_exitColor`    | Color | 出口标记颜色   |
+
+### 日志输出
+
+启用 `_enableLogging` 后，控制台将输出详细的生成日志：
+
+```
+[WorldGenerator] 开始生成世界 (种子: 12345)
+[WorldGenerator] 执行 3 条规则
+[WorldGenerator] 执行规则 [1/3]: 随机放置规则
+[随机放置规则] 放置房间 [1/6] @ (2, 3)
+...
+[WorldGenerator] 世界生成完成 (6 个房间, 耗时: 1250ms)
+```
+
 ---
 
 ## 附录
