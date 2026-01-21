@@ -1,0 +1,52 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6621e14c957ea4f44998cfb53be908e2, type: 3}
+  m_Name: WorldPipeline
+  m_EditorClassIdentifier: 
+  _roomCount: 6
+  _roomPixelSize: {x: 64, y: 64}
+  _dungeonPipeline: {fileID: 11400000, guid: 1dac47c5dfddd6c40a6937f24214260d, type: 2}
+  _enableLogging: 1
+  _rules:
+  - rid: 5106256679081869313
+  - rid: 5106256679081869315
+  - rid: 5106256679081869314
+  references:
+    version: 2
+    RefIds:
+    - rid: 5106256679081869313
+      type: {class: RandomPlacementRule, ns: CryptaGeometrica.LevelGeneration.V4.World, asm: Assembly-CSharp}
+      data:
+        _ruleName: "\u968F\u673A\u653E\u7F6E\u89C4\u5219"
+        _enabled: 1
+        _executionOrder: 10
+        _enableLogging: 0
+        _spawnThreshold: 0.5
+        _maxAttempts: 100
+        _maxRounds: 50
+    - rid: 5106256679081869314
+      type: {class: RoomGenerationRule, ns: CryptaGeometrica.LevelGeneration.V4.World, asm: Assembly-CSharp}
+      data:
+        _ruleName: "\u623F\u95F4\u751F\u6210\u89C4\u5219"
+        _enabled: 1
+        _executionOrder: 100
+        _enableLogging: 0
+        _retryOnFailure: 1
+        _maxRetries: 5
+        _framesBetweenRooms: 2
+    - rid: 5106256679081869315
+      type: {class: CoordinateCalcRule, ns: CryptaGeometrica.LevelGeneration.V4.World, asm: Assembly-CSharp}
+      data:
+        _ruleName: "\u5750\u6807\u8BA1\u7B97\u89C4\u5219"
+        _enabled: 1
+        _executionOrder: 20
+        _enableLogging: 0

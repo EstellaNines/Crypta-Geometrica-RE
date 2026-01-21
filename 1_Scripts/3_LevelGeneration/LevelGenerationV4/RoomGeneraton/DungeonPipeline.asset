@@ -1,0 +1,143 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e3bfcf0a6eba5994ea0366742cc2f356, type: 3}
+  m_Name: DungeonPipeline
+  m_EditorClassIdentifier: 
+  GridColumns: 4
+  GridRows: 4
+  RoomSize: {x: 16, y: 16}
+  Rules:
+  - rid: 5106256667760132096
+  - rid: 5106256667760132097
+  - rid: 5106256667760132098
+  - rid: 5106256667760132099
+  - rid: 5106256667760132100
+  - rid: 5106256667760132102
+  - rid: 5106256679081869312
+  - rid: 5106256667760132104
+  - rid: 5106256667760132105
+  - rid: 5106256667760132106
+  EnableLogging: 1
+  EnableVisualization: 1
+  references:
+    version: 2
+    RefIds:
+    - rid: 5106256667760132096
+      type: {class: ConstrainedLayoutRule, ns: CryptaGeometrica.LevelGeneration.V4, asm: Assembly-CSharp}
+      data:
+        _ruleName: ConstrainedLayoutRule
+        _enabled: 1
+        _executionOrder: 10
+        _enableLogging: 1
+        _maxSteps: 20
+        _downwardBias: 0.4
+        _sidewaysBias: 0.5
+        _minRooms: 10
+        _maxRetries: 30
+    - rid: 5106256667760132097
+      type: {class: CellularAutomataRule, ns: CryptaGeometrica.LevelGeneration.V4, asm: Assembly-CSharp}
+      data:
+        _ruleName: CellularAutomataRule
+        _enabled: 1
+        _executionOrder: 30
+        _enableLogging: 1
+        _iterations: 6
+        _removeIsolatedTiles: 1
+        _fillProbability: 0.3
+        _birthLimit: 5
+        _deathLimit: 3
+        _borderThickness: 2
+        _ensureConnectivity: 1
+        _minPathWidth: 4
+        _playerSize: 2
+    - rid: 5106256667760132098
+      type: {class: BFSValidationRule, ns: CryptaGeometrica.LevelGeneration.V4, asm: Assembly-CSharp}
+      data:
+        _ruleName: BFSValidationRule
+        _enabled: 1
+        _executionOrder: 20
+        _enableLogging: 1
+        _enableLoopCreation: 0
+        _maxExtraConnections: 2
+    - rid: 5106256667760132099
+      type: {class: EntranceExitRule, ns: CryptaGeometrica.LevelGeneration.V4, asm: Assembly-CSharp}
+      data:
+        _ruleName: EntranceExitRule
+        _enabled: 1
+        _executionOrder: 35
+        _enableLogging: 1
+        _carveRadius: 4
+        _ensureFloor: 1
+        _floorThickness: 1
+    - rid: 5106256667760132100
+      type: {class: PlatformRule, ns: CryptaGeometrica.LevelGeneration.V4, asm: Assembly-CSharp}
+      data:
+        _ruleName: PlatformRule
+        _enabled: 1
+        _executionOrder: 40
+        _enableLogging: 1
+        _jumpHeight: 4
+        _doubleJump: 1
+        _safetyMargin: 1
+        _minPlatformWidth: 2
+        _maxPlatformWidth: 5
+        _platformThickness: 1
+        _minHorizontalSpacing: 4
+        _debugLog: 0
+    - rid: 5106256667760132102
+      type: {class: PathValidationRule, ns: CryptaGeometrica.LevelGeneration.V4, asm: Assembly-CSharp}
+      data:
+        _ruleName: PathValidationRule
+        _enabled: 1
+        _executionOrder: 36
+        _enableLogging: 1
+        _playerSize: 2
+        _autoFix: 1
+        _fixPathWidth: 2
+        _showPathLog: 0
+    - rid: 5106256667760132104
+      type: {class: RoomRenderRule, ns: CryptaGeometrica.LevelGeneration.V4, asm: Assembly-CSharp}
+      data:
+        _ruleName: RoomRenderRule
+        _enabled: 1
+        _executionOrder: 100
+        _enableLogging: 1
+        _tileConfig: {fileID: 11400000, guid: 833c2fe8d1aa2864d936eaff7c807dd7, type: 2}
+        _backgroundTilemap: {fileID: 0}
+    - rid: 5106256667760132105
+      type: {class: PlatformRenderRule, ns: CryptaGeometrica.LevelGeneration.V4, asm: Assembly-CSharp}
+      data:
+        _ruleName: PlatformRenderRule
+        _enabled: 1
+        _executionOrder: 120
+        _enableLogging: 1
+        _platformTilemap: {fileID: 0}
+        _tileConfig: {fileID: 11400000, guid: 833c2fe8d1aa2864d936eaff7c807dd7, type: 2}
+    - rid: 5106256667760132106
+      type: {class: GroundRenderRule, ns: CryptaGeometrica.LevelGeneration.V4, asm: Assembly-CSharp}
+      data:
+        _ruleName: GroundRenderRule
+        _enabled: 1
+        _executionOrder: 110
+        _enableLogging: 1
+        _batchSize: 1000
+        _tileConfig: {fileID: 11400000, guid: 833c2fe8d1aa2864d936eaff7c807dd7, type: 2}
+        _groundTilemap: {fileID: 0}
+    - rid: 5106256679081869312
+      type: {class: BorderEnforcementRule, ns: CryptaGeometrica.LevelGeneration.V4, asm: Assembly-CSharp}
+      data:
+        _ruleName: BorderEnforcementRule
+        _enabled: 1
+        _executionOrder: 38
+        _enableLogging: 1
+        _borderThickness: 2
+        _doorHalfWidth: 2
