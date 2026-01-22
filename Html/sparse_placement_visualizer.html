@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>稀疏随机放置算法 - World Generator V4</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 100%);
+        }
+        
+        .glass-card {
+            background: rgba(26, 26, 46, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .cell {
+            font-family: 'Fira Code', monospace;
+            transition: all 0.3s ease;
+        }
+        
+        .cell.placed {
+            background: linear-gradient(135deg, #2e7d32 0%, #388e3c 100%) !important;
+            box-shadow: 0 0 25px rgba(76, 175, 80, 0.6);
+            border-color: #4caf50 !important;
+            transform: scale(1.05);
+        }
+        
+        .cell.blocked {
+            background: linear-gradient(135deg, #424242 0%, #616161 100%) !important;
+            border-color: #757575 !important;
+            opacity: 0.6;
+        }
+        
+        .cell.checking {
+            background: linear-gradient(135deg, #f57c00 0%, #ff9800 100%) !important;
+            box-shadow: 0 0 20px rgba(255, 152, 0, 0.6);
+            border-color: #ffb74d !important;
+            animation: pulse-check 0.3s ease;
+        }
+        
+        @keyframes pulse-check {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        
+        .value-change {
+            animation: value-flash 0.4s ease;
+        }
+        
+        @keyframes value-flash {
+            0% { color: #fff; transform: scale(1); }
+            30% { color: #ffeb3b; transform: scale(1.2); }
+            100% { color: inherit; transform: scale(1); }
+        }
+        
+        .recording-indicator {
+            animation: blink 1s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
+        #record-container {
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 100%);
+        }
+    </style>
+</head>
+<body class="min-h-screen text-white p-6">
+    <!-- Recording Container -->
+    <div id="record-container" class="max-w-2xl mx-auto p-6 rounded-2xl">
+        <!-- Header -->
+        <header class="text-center mb-6">
+            <h1 class="text-3xl font-bold mb-1 bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
+                稀疏随机放置算法
+            </h1>
+            <p class="text-gray-400 text-sm">Sparse Random Placement - World Generator V4</p>
+        </header>
+        
+        <!-- Grid Container -->
+        <div class="glass-card rounded-2xl p-6 mb-4">
+            <!-- 5x5 Grid -->
+            <div id="grid" class="grid grid-cols-5 gap-3 mb-4 mx-auto" style="max-width: 420px;">
+            </div>
+            
+            <!-- Current Check Status -->
+            <div id="check-status" class="text-center mb-3 h-6">
+                <span class="text-sm font-mono text-gray-400">等待开始...</span>
+            </div>
+            
+            <!-- Status -->
+            <div class="flex justify-center gap-4 text-sm mb-2">
+                <div class="px-4 py-2 rounded-lg bg-gray-800 font-mono">
+                    Rooms: <span id="room-count" class="text-green-400 font-bold text-lg">0</span>/<span id="max-rooms">6</span>
+                </div>
+                <div class="px-4 py-2 rounded-lg bg-gray-800 font-mono">
+                    检查: <span id="check-count" class="text-orange-400 font-bold">0</span>
+                </div>
+                <div id="recording-status" class="px-4 py-2 rounded-lg bg-red-900 font-mono hidden">
+                    <span class="recording-indicator">🔴</span> REC
+                </div>
+            </div>
+        </div>
+        
+        <!-- Rules -->
+        <div class="glass-card rounded-xl p-4 mb-4">
+            <h3 class="text-center text-sm font-semibold mb-3 text-yellow-400">放置规则 Placement Rules</h3>
+            <div class="grid grid-cols-2 gap-4 text-center text-sm">
+                <div class="bg-gray-800 rounded-lg p-3">
+                    <div class="text-gray-400 mb-1">间隔要求</div>
+                    <div class="text-xl font-bold text-red-400">≥ 1 格</div>
+                    <div class="text-xs text-gray-500">房间之间必须隔开</div>
+                </div>
+                <div class="bg-gray-800 rounded-lg p-3">
+                    <div class="text-gray-400 mb-1">房间上限</div>
+                    <div class="text-xl font-bold text-green-400">6</div>
+                    <div class="text-xs text-gray-500">5×5 网格最多6个</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Legend -->
+        <div class="glass-card rounded-xl p-3">
+            <div class="flex justify-center gap-4 text-xs flex-wrap">
+                <div class="flex items-center gap-2">
+                    <div class="w-5 h-5 rounded bg-[#2a2a4a] border border-gray-600"></div>
+                    <span class="text-gray-400">可用</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-5 h-5 rounded bg-gradient-to-br from-orange-600 to-orange-500 border border-orange-400"></div>
+                    <span class="text-gray-400">检查中</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-5 h-5 rounded bg-gradient-to-br from-[#2e7d32] to-[#388e3c] border border-[#4caf50]"></div>
+                    <span class="text-gray-400">房间</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-5 h-5 rounded bg-gradient-to-br from-gray-600 to-gray-500 border border-gray-500 opacity-60"></div>
+                    <span class="text-gray-400">被阻挡</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Controls -->
+    <div class="max-w-2xl mx-auto mt-4">
+        <div class="flex justify-center gap-3 flex-wrap">
+            <button id="start-btn" onclick="toggleAnimation()" 
+                    class="px-6 py-2 bg-gradient-to-r from-green-600 to-emerald-500 rounded-xl font-semibold 
+                           hover:from-green-500 hover:to-emerald-400 cursor-pointer text-sm">
+                ▶ 开始
+            </button>
+            <button onclick="stepOnce()" 
+                    class="px-6 py-2 bg-orange-600 rounded-xl font-semibold hover:bg-orange-500 cursor-pointer text-sm">
+                → 单步
+            </button>
+            <button onclick="resetGrid()" 
+                    class="px-6 py-2 bg-gray-700 rounded-xl font-semibold hover:bg-gray-600 cursor-pointer text-sm">
+                ↺ 重置
+            </button>
+            <button id="record-btn" onclick="startRecording()" 
+                    class="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-500 rounded-xl font-semibold 
+                           hover:from-purple-500 hover:to-pink-400 cursor-pointer text-sm">
+                🎥 录制
+            </button>
+        </div>
+        
+        <!-- Speed Slider -->
+        <div class="glass-card rounded-xl p-3 mt-3">
+            <div class="flex items-center justify-center gap-4">
+                <span class="text-xs text-gray-400">速度:</span>
+                <input type="range" id="speed-slider" min="300" max="1500" value="800" 
+                       class="w-40 accent-green-500" oninput="updateSpeed()">
+                <span id="speed-value" class="text-xs text-green-400 font-mono w-16">800ms</span>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Configuration
+        const GRID_SIZE = 5;
+        const threshold = 0.75;
+        const MAX_ROOMS = 6;  // 最多6个房间
+        const MIN_SPACING = 1;  // 房间间隔至少1格
+        let ANIMATION_SPEED = 800;
+        
+        // State
+        let cellDoms = [];
+        let values = [];
+        let placed = [];   // 是否放置了房间
+        let blocked = [];  // 是否被邻居阻挡
+        let roomsPlaced = 0;
+        let checkCount = 0;
+        let isRunning = false;
+        let finished = false;
+        let animationId = null;
+        let currentCheckIndex = 0;
+        
+        // Recording
+        let isRecording = false;
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let recordingCanvas = null;
+        let recordingCtx = null;
+        
+        function initGrid() {
+            const gridContainer = document.getElementById('grid');
+            gridContainer.innerHTML = '';
+            
+            cellDoms = [];
+            values = [];
+            placed = [];
+            blocked = [];
+            roomsPlaced = 0;
+            checkCount = 0;
+            finished = false;
+            currentCheckIndex = 0;
+            
+            for (let i = 0; i < GRID_SIZE * GRID_SIZE; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell w-full aspect-square rounded-lg border-2 border-gray-600 bg-[#2a2a4a] flex items-center justify-center text-xl font-bold';
+                
+                const val = Math.random();
+                cell.textContent = val.toFixed(2);
+                
+                gridContainer.appendChild(cell);
+                cellDoms.push(cell);
+                values.push(val);
+                placed.push(false);
+                blocked.push(false);
+            }
+            
+            updateDisplay();
+            document.getElementById('check-status').innerHTML = '<span class="text-gray-400">点击 "开始" 或 "单步" 观看</span>';
+        }
+        
+        // 检查放置房间后需要阻挡哪些邻居
+        function blockNeighbors(idx) {
+            const row = Math.floor(idx / GRID_SIZE);
+            const col = idx % GRID_SIZE;
+            
+            // 8方向邻居都被阻挡（间隔1格）
+            const directions = [
+                [-1, -1], [-1, 0], [-1, 1],
+                [0, -1],           [0, 1],
+                [1, -1],  [1, 0],  [1, 1]
+            ];
+            
+            for (const [dr, dc] of directions) {
+                const nr = row + dr;
+                const nc = col + dc;
+                if (nr >= 0 && nr < GRID_SIZE && nc >= 0 && nc < GRID_SIZE) {
+                    const neighborIdx = nr * GRID_SIZE + nc;
+                    if (!placed[neighborIdx]) {
+                        blocked[neighborIdx] = true;
+                        cellDoms[neighborIdx].classList.add('blocked');
+                        cellDoms[neighborIdx].classList.remove('checking');
+                    }
+                }
+            }
+        }
+        
+        // 检查该位置是否可以放置房间
+        function canPlace(idx) {
+            if (placed[idx] || blocked[idx]) return false;
+            return true;
+        }
+        
+        function stepOnce() {
+            if (finished) return false;
+            
+            // 找到下一个可以检查的格子（未放置且未被阻挡）
+            let attempts = 0;
+            while ((placed[currentCheckIndex] || blocked[currentCheckIndex]) && attempts < GRID_SIZE * GRID_SIZE) {
+                currentCheckIndex = (currentCheckIndex + 1) % (GRID_SIZE * GRID_SIZE);
+                attempts++;
+            }
+            
+            // 检查是否还有可用格子
+            const availableCount = placed.filter((p, i) => !p && !blocked[i]).length;
+            if (availableCount === 0 || roomsPlaced >= MAX_ROOMS) {
+                finished = true;
+                document.getElementById('check-status').innerHTML = 
+                    `<span class="text-green-400 text-lg font-bold">✓ 完成! 放置了 ${roomsPlaced} 个房间</span>`;
+                return false;
+            }
+            
+            const idx = currentCheckIndex;
+            checkCount++;
+            
+            // 清除之前的checking状态
+            cellDoms.forEach(c => c.classList.remove('checking'));
+            
+            // 高亮当前检查的格子
+            cellDoms[idx].classList.add('checking');
+            
+            // 生成新随机数
+            const newVal = Math.random();
+            values[idx] = newVal;
+            
+            cellDoms[idx].textContent = newVal.toFixed(2);
+            cellDoms[idx].classList.add('value-change');
+            setTimeout(() => cellDoms[idx].classList.remove('value-change'), 400);
+            
+            const row = Math.floor(idx / GRID_SIZE);
+            const col = idx % GRID_SIZE;
+            document.getElementById('check-status').innerHTML = 
+                `<span class="text-orange-400">检查 (${col}, ${row}): </span>` +
+                `<span class="text-yellow-400 font-bold">${newVal.toFixed(3)}</span>` +
+                (newVal >= threshold ? 
+                    ` <span class="text-green-400">≥ ${threshold} ✓</span>` : 
+                    ` <span class="text-red-400">< ${threshold}</span>`);
+            
+            // 检查是否超过阈值
+            if (newVal >= threshold && canPlace(idx) && roomsPlaced < MAX_ROOMS) {
+                setTimeout(() => {
+                    placed[idx] = true;
+                    roomsPlaced++;
+                    
+                    cellDoms[idx].classList.remove('checking');
+                    cellDoms[idx].classList.add('placed');
+                    
+                    // 阻挡周围的格子
+                    blockNeighbors(idx);
+                    
+                    // 检查是否完成
+                    const stillAvailable = placed.filter((p, i) => !p && !blocked[i]).length;
+                    if (roomsPlaced >= MAX_ROOMS || stillAvailable === 0) {
+                        finished = true;
+                        document.getElementById('check-status').innerHTML = 
+                            `<span class="text-green-400 text-lg font-bold">✓ 完成! 放置了 ${roomsPlaced} 个房间</span>`;
+                    }
+                    
+                    updateDisplay();
+                    if (isRecording) captureFrame();
+                }, ANIMATION_SPEED / 3);
+            }
+            
+            currentCheckIndex = (currentCheckIndex + 1) % (GRID_SIZE * GRID_SIZE);
+            updateDisplay();
+            if (isRecording) captureFrame();
+            
+            return !finished;
+        }
+        
+        function updateDisplay() {
+            document.getElementById('room-count').textContent = roomsPlaced;
+            document.getElementById('check-count').textContent = checkCount;
+        }
+        
+        function animate() {
+            if (!isRunning || finished) {
+                isRunning = false;
+                document.getElementById('start-btn').textContent = finished ? '✓ 完成' : '▶ 开始';
+                if (isRecording && finished) setTimeout(stopRecording, 1500);
+                return;
+            }
+            
+            stepOnce();
+            animationId = setTimeout(animate, ANIMATION_SPEED);
+        }
+        
+        function toggleAnimation() {
+            if (finished) {
+                resetGrid();
+                return;
+            }
+            
+            if (isRunning) {
+                isRunning = false;
+                document.getElementById('start-btn').textContent = '▶ 继续';
+            } else {
+                isRunning = true;
+                document.getElementById('start-btn').textContent = '⏸ 暂停';
+                animate();
+            }
+        }
+        
+        function resetGrid() {
+            isRunning = false;
+            clearTimeout(animationId);
+            document.getElementById('start-btn').textContent = '▶ 开始';
+            initGrid();
+        }
+        
+        function updateSpeed() {
+            ANIMATION_SPEED = parseInt(document.getElementById('speed-slider').value);
+            document.getElementById('speed-value').textContent = ANIMATION_SPEED + 'ms';
+        }
+        
+        // ============ HD HIGH-QUALITY RECORDING ============
+        const HD_SCALE = 2;
+        const TARGET_FPS = 60;
+        const BITRATE = 8000000;
+        
+        async function captureFrame() {
+            try {
+                const container = document.getElementById('record-container');
+                const frameCanvas = await html2canvas(container, {
+                    backgroundColor: '#0f0f23',
+                    scale: HD_SCALE,
+                    useCORS: true,
+                    logging: false
+                });
+                if (recordingCtx) {
+                    recordingCtx.drawImage(frameCanvas, 0, 0, recordingCanvas.width, recordingCanvas.height);
+                }
+            } catch (e) { console.error(e); }
+        }
+        
+        function getMimeType() {
+            const types = ['video/mp4;codecs=avc1.42E01E', 'video/mp4', 'video/webm;codecs=h264', 'video/webm;codecs=vp9', 'video/webm'];
+            for (const type of types) {
+                if (MediaRecorder.isTypeSupported(type)) return type;
+            }
+            return 'video/webm';
+        }
+        
+        async function startRecording() {
+            resetGrid();
+            
+            const container = document.getElementById('record-container');
+            const rect = container.getBoundingClientRect();
+            
+            recordingCanvas = document.createElement('canvas');
+            recordingCanvas.width = Math.floor(rect.width * HD_SCALE);
+            recordingCanvas.height = Math.floor(rect.height * HD_SCALE);
+            recordingCtx = recordingCanvas.getContext('2d');
+            
+            recordedChunks = [];
+            const stream = recordingCanvas.captureStream(TARGET_FPS);
+            const mimeType = getMimeType();
+            
+            mediaRecorder = new MediaRecorder(stream, {
+                mimeType: mimeType,
+                videoBitsPerSecond: BITRATE
+            });
+            
+            mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+            mediaRecorder.onstop = () => {
+                const isMP4 = mimeType.includes('mp4');
+                const blob = new Blob(recordedChunks, { type: mimeType });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = isMP4 ? 'sparse_placement_HD.mp4' : 'sparse_placement_HD.webm';
+                a.click();
+                
+                document.getElementById('recording-status').classList.add('hidden');
+                document.getElementById('record-btn').disabled = false;
+                isRecording = false;
+            };
+            
+            mediaRecorder.start(50);
+            isRecording = true;
+            document.getElementById('recording-status').classList.remove('hidden');
+            document.getElementById('record-btn').disabled = true;
+            
+            await captureFrame();
+            setTimeout(toggleAnimation, 500);
+        }
+        
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+            isRunning = false;
+        }
+        
+        initGrid();
+    </script>
+</body>
+</html>

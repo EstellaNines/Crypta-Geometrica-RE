@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>感知型空气柱采样 - Room Generator V4</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 100%);
+        }
+        
+        .glass-card {
+            background: rgba(26, 26, 46, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .recording-indicator {
+            animation: blink 1s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
+        #record-container {
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 100%);
+        }
+    </style>
+</head>
+<body class="min-h-screen text-white p-6">
+    <!-- Recording Container -->
+    <div id="record-container" class="max-w-4xl mx-auto p-6 rounded-2xl">
+        <!-- Header -->
+        <header class="text-center mb-6">
+            <h1 class="text-3xl font-bold mb-1 bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent">
+                感知型空气柱采样
+            </h1>
+            <p class="text-gray-400 text-sm">Air Column Scanning - Platform Generation Algorithm</p>
+        </header>
+        
+        <!-- Main Visualization -->
+        <div class="glass-card rounded-2xl p-4 mb-4">
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <!-- Step 1: Terrain -->
+                <div>
+                    <h3 class="text-center text-sm text-cyan-400 mb-2 font-semibold">Step 1: 地形数据</h3>
+                    <canvas id="terrain-canvas" width="320" height="320" class="rounded-lg w-full border border-gray-700"></canvas>
+                </div>
+                <!-- Step 2: Platform Result -->
+                <div>
+                    <h3 class="text-center text-sm text-green-400 mb-2 font-semibold">Step 2: 平台生成</h3>
+                    <canvas id="platform-canvas" width="320" height="320" class="rounded-lg w-full border border-gray-700"></canvas>
+                </div>
+            </div>
+            
+            <!-- Progress -->
+            <div class="mb-3">
+                <div class="flex justify-between text-xs text-gray-400 mb-1">
+                    <span>扫描进度</span>
+                    <span id="progress-text">列 0 / 32</span>
+                </div>
+                <div class="w-full bg-gray-800 rounded-full h-3">
+                    <div id="progress-bar" class="bg-gradient-to-r from-purple-500 to-pink-500 h-3 rounded-full transition-all" style="width: 0%"></div>
+                </div>
+            </div>
+            
+            <!-- Status -->
+            <div class="flex justify-center gap-3 text-sm flex-wrap">
+                <div class="px-3 py-1 rounded bg-gray-800 font-mono">
+                    扫描列: <span id="col-display" class="text-yellow-400">0</span>
+                </div>
+                <div class="px-3 py-1 rounded bg-gray-800 font-mono">
+                    空气柱: <span id="aircol-display" class="text-cyan-400">-</span>
+                </div>
+                <div class="px-3 py-1 rounded bg-gray-800 font-mono">
+                    平台数: <span id="platform-count" class="text-green-400">0</span>
+                </div>
+                <div id="recording-status" class="px-3 py-1 rounded bg-red-900 font-mono hidden">
+                    <span class="recording-indicator">🔴</span> REC
+                </div>
+            </div>
+        </div>
+        
+        <!-- Algorithm Explanation -->
+        <div class="glass-card rounded-xl p-4 mb-4">
+            <h3 class="text-center text-sm font-semibold mb-3 text-purple-400">垂直扫描线算法</h3>
+            <div class="grid grid-cols-3 gap-3 text-center text-xs">
+                <div class="bg-gray-800 rounded-lg p-3">
+                    <div class="text-2xl mb-1">📊</div>
+                    <div class="text-gray-400">自下而上扫描</div>
+                    <div class="text-cyan-400 font-mono">检测空气柱高度</div>
+                </div>
+                <div class="bg-gray-800 rounded-lg p-3">
+                    <div class="text-2xl mb-1">📏</div>
+                    <div class="text-gray-400">高度检测</div>
+                    <div class="text-yellow-400 font-mono">Height ≥ JumpHeight×2</div>
+                </div>
+                <div class="bg-gray-800 rounded-lg p-3">
+                    <div class="text-2xl mb-1">🛠️</div>
+                    <div class="text-gray-400">平台放置</div>
+                    <div class="text-green-400 font-mono">左右射线确定宽度</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Legend -->
+        <div class="glass-card rounded-xl p-3">
+            <div class="flex justify-center gap-4 text-xs flex-wrap">
+                <div class="flex items-center gap-2">
+                    <div class="w-5 h-5 rounded bg-[#4a4a4a]"></div>
+                    <span class="text-gray-400">墙壁 Wall</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-5 h-5 rounded bg-[#1a1a2e]"></div>
+                    <span class="text-gray-400">空气 Air</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-5 h-5 rounded bg-[#00bcd4]"></div>
+                    <span class="text-gray-400">扫描线</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-5 h-5 rounded bg-[#ff9800]"></div>
+                    <span class="text-gray-400">空气柱</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-5 h-5 rounded bg-[#8bc34a]"></div>
+                    <span class="text-gray-400">平台</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Controls -->
+    <div class="max-w-4xl mx-auto mt-4">
+        <div class="flex justify-center gap-3 flex-wrap">
+            <button id="start-btn" onclick="toggleScan()" 
+                    class="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-500 rounded-xl font-semibold 
+                           hover:from-purple-500 hover:to-pink-400 cursor-pointer text-sm">
+                ▶ 开始扫描
+            </button>
+            <button onclick="resetAll()" 
+                    class="px-6 py-2 bg-gray-700 rounded-xl font-semibold hover:bg-gray-600 cursor-pointer text-sm">
+                ↺ 重置
+            </button>
+            <button id="record-btn" onclick="startRecording()" 
+                    class="px-6 py-2 bg-gradient-to-r from-red-600 to-orange-500 rounded-xl font-semibold 
+                           hover:from-red-500 hover:to-orange-400 cursor-pointer text-sm">
+                🎥 录制
+            </button>
+        </div>
+    </div>
+    
+    <script>
+        // ============ CONFIGURATION ============
+        const WIDTH = 32;
+        const HEIGHT = 32;
+        const CELL_SIZE = 10;
+        const JUMP_HEIGHT = 4;
+        const MIN_AIR_HEIGHT = JUMP_HEIGHT * 2;
+        const MIN_PLATFORM_WIDTH = 3;
+        const VERTICAL_SPACING = 6;
+        const ANIMATION_DELAY = 300;  // ~10s total (32 columns × 300ms)
+        
+        const COLORS = {
+            wall: '#4a4a4a',
+            air: '#1a1a2e',
+            scanline: '#00bcd4',
+            airColumn: '#ff9800',
+            platform: '#8bc34a'
+        };
+        
+        // ============ STATE ============
+        const terrainCanvas = document.getElementById('terrain-canvas');
+        const platformCanvas = document.getElementById('platform-canvas');
+        const terrainCtx = terrainCanvas.getContext('2d');
+        const platformCtx = platformCanvas.getContext('2d');
+        
+        let terrain = [];
+        let platforms = [];
+        let currentCol = 0;
+        let isRunning = false;
+        let finished = false;
+        let animationId = null;
+        
+        // Recording
+        let isRecording = false;
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let recordingCanvas = null;
+        let recordingCtx = null;
+        
+        // ============ TERRAIN GENERATION ============
+        function generateCaveTerrain() {
+            // Generate simple cave-like terrain using cellular automata result
+            terrain = [];
+            for (let y = 0; y < HEIGHT; y++) {
+                const row = [];
+                for (let x = 0; x < WIDTH; x++) {
+                    // Border
+                    if (x < 2 || x >= WIDTH - 2 || y < 2 || y >= HEIGHT - 2) {
+                        row.push(1);
+                    } else {
+                        // Create cave patterns
+                        const noise = Math.random();
+                        const distFromCenter = Math.abs(x - WIDTH/2) / (WIDTH/2);
+                        const heightFactor = (HEIGHT - y) / HEIGHT;
+                        
+                        // More opening in the middle, more solid at bottom
+                        if (noise < 0.35 + distFromCenter * 0.2 + heightFactor * 0.1) {
+                            row.push(1);  // Wall
+                        } else {
+                            row.push(0);  // Air
+                        }
+                    }
+                }
+                terrain.push(row);
+            }
+            
+            // Apply simple smoothing
+            for (let iter = 0; iter < 3; iter++) {
+                const newTerrain = terrain.map(r => [...r]);
+                for (let y = 2; y < HEIGHT - 2; y++) {
+                    for (let x = 2; x < WIDTH - 2; x++) {
+                        let walls = 0;
+                        for (let dy = -1; dy <= 1; dy++) {
+                            for (let dx = -1; dx <= 1; dx++) {
+                                walls += terrain[y + dy][x + dx];
+                            }
+                        }
+                        newTerrain[y][x] = walls >= 5 ? 1 : 0;
+                    }
+                }
+                terrain = newTerrain;
+            }
+            
+            // Ensure ground at bottom
+            for (let x = 2; x < WIDTH - 2; x++) {
+                terrain[HEIGHT - 3][x] = 1;
+            }
+        }
+        
+        function renderTerrain(ctx, showScanline = -1, airColumnStart = -1, airColumnEnd = -1) {
+            for (let y = 0; y < HEIGHT; y++) {
+                for (let x = 0; x < WIDTH; x++) {
+                    ctx.fillStyle = terrain[y][x] === 1 ? COLORS.wall : COLORS.air;
+                    ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                }
+            }
+            
+            // Draw platforms
+            for (const p of platforms) {
+                ctx.fillStyle = COLORS.platform;
+                ctx.fillRect(p.x * CELL_SIZE, p.y * CELL_SIZE, p.width * CELL_SIZE, CELL_SIZE);
+            }
+            
+            // Draw scanline
+            if (showScanline >= 0) {
+                ctx.fillStyle = COLORS.scanline;
+                ctx.globalAlpha = 0.5;
+                ctx.fillRect(showScanline * CELL_SIZE, 0, CELL_SIZE, HEIGHT * CELL_SIZE);
+                ctx.globalAlpha = 1.0;
+                
+                // Draw air column highlight
+                if (airColumnStart >= 0 && airColumnEnd >= 0) {
+                    ctx.fillStyle = COLORS.airColumn;
+                    ctx.globalAlpha = 0.6;
+                    const height = airColumnEnd - airColumnStart;
+                    ctx.fillRect(showScanline * CELL_SIZE, airColumnStart * CELL_SIZE, CELL_SIZE, height * CELL_SIZE);
+                    ctx.globalAlpha = 1.0;
+                }
+            }
+        }
+        
+        // ============ AIR COLUMN SCANNING ============
+        function findAirColumns(col) {
+            const columns = [];
+            let inAir = false;
+            let startY = 0;
+            
+            // Scan from top to bottom
+            for (let y = 0; y < HEIGHT; y++) {
+                const isAir = terrain[y][col] === 0;
+                
+                if (isAir && !inAir) {
+                    inAir = true;
+                    startY = y;
+                } else if (!isAir && inAir) {
+                    inAir = false;
+                    const height = y - startY;
+                    if (height >= MIN_AIR_HEIGHT) {
+                        columns.push({ start: startY, end: y, height: height });
+                    }
+                }
+            }
+            
+            return columns;
+        }
+        
+        function canPlacePlatform(x, y, width) {
+            // Check if position is valid
+            for (let dx = 0; dx < width; dx++) {
+                if (x + dx >= WIDTH - 2) return false;
+                if (terrain[y][x + dx] === 1) return false;  // Would be inside wall
+                if (y + 1 < HEIGHT && terrain[y + 1][x + dx] === 1) return false;  // Too close to ground below
+            }
+            
+            // Check overlap with existing platforms
+            for (const p of platforms) {
+                if (Math.abs(p.y - y) < VERTICAL_SPACING) {
+                    if (x < p.x + p.width && x + width > p.x) {
+                        return false;  // Overlaps horizontally and too close vertically
+                    }
+                }
+            }
+            
+            return true;
+        }
+        
+        function placePlatform(col, airColumn) {
+            // Find middle of air column
+            const midY = Math.floor((airColumn.start + airColumn.end) / 2);
+            
+            // Raycast left and right to determine width
+            let leftDist = 0, rightDist = 0;
+            
+            for (let dx = 1; dx < 8; dx++) {
+                if (col - dx >= 0 && terrain[midY][col - dx] === 0) leftDist = dx;
+                else break;
+            }
+            
+            for (let dx = 1; dx < 8; dx++) {
+                if (col + dx < WIDTH && terrain[midY][col + dx] === 0) rightDist = dx;
+                else break;
+            }
+            
+            const totalWidth = leftDist + rightDist + 1;
+            if (totalWidth < MIN_PLATFORM_WIDTH) return null;
+            
+            const platformX = col - leftDist;
+            const platformWidth = Math.min(totalWidth, 6);  // Max width 6
+            
+            if (canPlacePlatform(platformX, midY, platformWidth)) {
+                return { x: platformX, y: midY, width: platformWidth };
+            }
+            
+            return null;
+        }
+        
+        function scanColumn() {
+            if (finished || currentCol >= WIDTH) {
+                finished = true;
+                return;
+            }
+            
+            const airColumns = findAirColumns(currentCol);
+            let currentAirCol = null;
+            
+            for (const ac of airColumns) {
+                // Try to place a platform in this air column
+                const platform = placePlatform(currentCol, ac);
+                if (platform) {
+                    platforms.push(platform);
+                    currentAirCol = ac;
+                    break;  // One platform per column max
+                } else if (!currentAirCol && ac.height >= MIN_AIR_HEIGHT) {
+                    currentAirCol = ac;  // Show first valid air column even if no platform placed
+                }
+            }
+            
+            // Update display
+            document.getElementById('col-display').textContent = currentCol;
+            document.getElementById('aircol-display').textContent = currentAirCol 
+                ? `Y: ${currentAirCol.start}-${currentAirCol.end} (H: ${currentAirCol.height})`
+                : '-';
+            document.getElementById('platform-count').textContent = platforms.length;
+            document.getElementById('progress-text').textContent = `列 ${currentCol + 1} / ${WIDTH}`;
+            document.getElementById('progress-bar').style.width = ((currentCol + 1) / WIDTH * 100) + '%';
+            
+            // Render
+            renderTerrain(terrainCtx, currentCol, 
+                currentAirCol ? currentAirCol.start : -1, 
+                currentAirCol ? currentAirCol.end : -1);
+            renderTerrain(platformCtx);
+            
+            if (isRecording) captureFrame();
+            
+            currentCol++;
+        }
+        
+        function animate() {
+            if (!isRunning || finished) {
+                isRunning = false;
+                document.getElementById('start-btn').textContent = finished ? '✓ 完成' : '▶ 开始扫描';
+                if (isRecording && finished) setTimeout(stopRecording, 1000);
+                return;
+            }
+            
+            scanColumn();
+            animationId = setTimeout(animate, ANIMATION_DELAY);
+        }
+        
+        function toggleScan() {
+            if (finished) {
+                resetAll();
+                return;
+            }
+            
+            if (isRunning) {
+                isRunning = false;
+                document.getElementById('start-btn').textContent = '▶ 继续';
+            } else {
+                isRunning = true;
+                document.getElementById('start-btn').textContent = '⏸ 暂停';
+                animate();
+            }
+        }
+        
+        function resetAll() {
+            isRunning = false;
+            clearTimeout(animationId);
+            
+            platforms = [];
+            currentCol = 0;
+            finished = false;
+            
+            generateCaveTerrain();
+            renderTerrain(terrainCtx);
+            renderTerrain(platformCtx);
+            
+            document.getElementById('start-btn').textContent = '▶ 开始扫描';
+            document.getElementById('col-display').textContent = '0';
+            document.getElementById('aircol-display').textContent = '-';
+            document.getElementById('platform-count').textContent = '0';
+            document.getElementById('progress-text').textContent = '列 0 / 32';
+            document.getElementById('progress-bar').style.width = '0%';
+        }
+        
+        // ============ HD HIGH-QUALITY RECORDING ============
+        const HD_SCALE = 2;
+        const TARGET_FPS = 60;
+        const BITRATE = 8000000;
+        
+        async function captureFrame() {
+            try {
+                const container = document.getElementById('record-container');
+                const frameCanvas = await html2canvas(container, {
+                    backgroundColor: '#0f0f23',
+                    scale: HD_SCALE,
+                    useCORS: true,
+                    logging: false
+                });
+                if (recordingCtx) {
+                    recordingCtx.drawImage(frameCanvas, 0, 0, recordingCanvas.width, recordingCanvas.height);
+                }
+            } catch (e) { console.error(e); }
+        }
+        
+        function getMimeType() {
+            const types = ['video/mp4;codecs=avc1.42E01E', 'video/mp4', 'video/webm;codecs=h264', 'video/webm;codecs=vp9', 'video/webm'];
+            for (const type of types) {
+                if (MediaRecorder.isTypeSupported(type)) {
+                    console.log('Using codec:', type);
+                    return type;
+                }
+            }
+            return 'video/webm';
+        }
+        
+        async function startRecording() {
+            resetAll();
+            
+            const container = document.getElementById('record-container');
+            const rect = container.getBoundingClientRect();
+            
+            recordingCanvas = document.createElement('canvas');
+            recordingCanvas.width = Math.floor(rect.width * HD_SCALE);
+            recordingCanvas.height = Math.floor(rect.height * HD_SCALE);
+            recordingCtx = recordingCanvas.getContext('2d');
+            
+            recordedChunks = [];
+            const stream = recordingCanvas.captureStream(TARGET_FPS);
+            const mimeType = getMimeType();
+            
+            mediaRecorder = new MediaRecorder(stream, {
+                mimeType: mimeType,
+                videoBitsPerSecond: BITRATE
+            });
+            
+            mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+            mediaRecorder.onstop = () => {
+                const isMP4 = mimeType.includes('mp4');
+                const blob = new Blob(recordedChunks, { type: mimeType });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = isMP4 ? 'air_column_sampling_HD.mp4' : 'air_column_sampling_HD.webm';
+                a.click();
+                
+                document.getElementById('recording-status').classList.add('hidden');
+                document.getElementById('record-btn').disabled = false;
+                isRecording = false;
+            };
+            
+            mediaRecorder.start(50);
+            isRecording = true;
+            document.getElementById('recording-status').classList.remove('hidden');
+            document.getElementById('record-btn').disabled = true;
+            
+            await captureFrame();
+            setTimeout(toggleScan, 500);
+        }
+        
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+            isRunning = false;
+        }
+        
+        // Initialize
+        resetAll();
+    </script>
+</body>
+</html>

@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>元胞自动机地形生成 - Room Generator V4</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 100%);
+        }
+        
+        .glass-card {
+            background: rgba(26, 26, 46, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .status-badge {
+            font-family: 'Fira Code', monospace;
+        }
+        
+        .recording-indicator {
+            animation: blink 1s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
+        #record-container {
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 100%);
+        }
+    </style>
+</head>
+<body class="min-h-screen text-white p-6">
+    <!-- Recording Container -->
+    <div id="record-container" class="max-w-5xl mx-auto p-4 rounded-2xl">
+        <!-- Header -->
+        <header class="text-center mb-4">
+            <h1 class="text-3xl font-bold mb-1 bg-gradient-to-r from-gray-400 via-amber-500 to-amber-400 bg-clip-text text-transparent">
+                Room Generator V4: 元胞自动机地形生成
+            </h1>
+            <p class="text-gray-400 text-sm">Cellular Automata Terrain Generation</p>
+        </header>
+        
+        <!-- Main Visualization -->
+        <div class="glass-card rounded-2xl p-4 mb-4">
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <!-- Step 1: Random Fill -->
+                <div>
+                    <h3 class="text-center text-sm text-cyan-400 mb-2 font-semibold">Step 1: 随机填充 (Random Fill)</h3>
+                    <canvas id="init-canvas" width="256" height="256" class="rounded-lg w-full border border-gray-700"></canvas>
+                </div>
+                <!-- Step 2: CA Iterations -->
+                <div>
+                    <h3 class="text-center text-sm text-green-400 mb-2 font-semibold">Step 2: CA迭代 (Cellular Automata)</h3>
+                    <canvas id="ca-canvas" width="256" height="256" class="rounded-lg w-full border border-gray-700"></canvas>
+                </div>
+            </div>
+            
+            <!-- Progress -->
+            <div class="mb-3">
+                <div class="flex justify-between text-xs text-gray-400 mb-1">
+                    <span>CA Iteration</span>
+                    <span id="iteration-text">0 / 8</span>
+                </div>
+                <div class="w-full bg-gray-800 rounded-full h-3">
+                    <div id="progress-bar" class="bg-gradient-to-r from-cyan-500 to-green-500 h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+            
+            <!-- Status -->
+            <div class="flex justify-center gap-4 text-sm">
+                <div class="status-badge px-3 py-1 rounded bg-gray-800">
+                    填充率: <span id="fill-display" class="text-yellow-400">45%</span>
+                </div>
+                <div class="status-badge px-3 py-1 rounded bg-gray-800">
+                    出生阈值: <span id="birth-display" class="text-green-400">4</span>
+                </div>
+                <div class="status-badge px-3 py-1 rounded bg-gray-800">
+                    死亡阈值: <span id="death-display" class="text-red-400">3</span>
+                </div>
+                <div id="recording-status" class="status-badge px-3 py-1 rounded bg-red-900 hidden">
+                    <span class="recording-indicator">🔴</span> REC
+                </div>
+            </div>
+        </div>
+        
+        <!-- CA Rules Legend -->
+        <div class="glass-card rounded-xl p-4 mb-4">
+            <h3 class="text-center text-sm font-semibold mb-3">元胞自动机规则 (CA Rules)</h3>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-gray-800 rounded-lg p-3 text-center">
+                    <div class="flex items-center justify-center gap-2 mb-2">
+                        <div class="w-6 h-6 rounded" style="background-color: #4a4a4a;"></div>
+                        <span class="text-gray-300">空洞 (Empty) → 实心</span>
+                        <div class="w-6 h-6 rounded" style="background-color: #8B4513;"></div>
+                    </div>
+                    <div class="text-xs text-gray-400">邻居数 ≥ <span class="text-green-400">出生阈值(4)</span></div>
+                </div>
+                <div class="bg-gray-800 rounded-lg p-3 text-center">
+                    <div class="flex items-center justify-center gap-2 mb-2">
+                        <div class="w-6 h-6 rounded" style="background-color: #8B4513;"></div>
+                        <span class="text-gray-300">实心 (Solid) → 空洞</span>
+                        <div class="w-6 h-6 rounded" style="background-color: #4a4a4a;"></div>
+                    </div>
+                    <div class="text-xs text-gray-400">邻居数 < <span class="text-red-400">死亡阈值(3)</span></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tile Legend -->
+        <div class="glass-card rounded-xl p-3">
+            <div class="flex justify-center gap-8 text-sm">
+                <div class="flex items-center gap-2">
+                    <div class="w-5 h-5 rounded" style="background-color: #4a4a4a;"></div>
+                    <span class="text-gray-400">空洞 Empty (0)</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-5 h-5 rounded" style="background-color: #8B4513;"></div>
+                    <span class="text-gray-400">实心 Solid (1)</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-5 h-5 rounded border-2" style="background-color: #1a1a2e; border-color: #666;"></div>
+                    <span class="text-gray-400">边界 Border</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Controls -->
+    <div class="max-w-5xl mx-auto mt-4">
+        <div class="flex justify-center gap-3 flex-wrap">
+            <button id="start-btn" onclick="startCA()" 
+                    class="px-6 py-2 bg-gradient-to-r from-cyan-600 to-green-500 rounded-xl font-semibold 
+                           hover:from-cyan-500 hover:to-green-400 cursor-pointer text-sm">
+                ▶ Run CA
+            </button>
+            <button onclick="stepOnce()" 
+                    class="px-6 py-2 bg-gray-700 rounded-xl font-semibold hover:bg-gray-600 cursor-pointer text-sm">
+                → Step
+            </button>
+            <button onclick="resetCA()" 
+                    class="px-6 py-2 bg-gray-700 rounded-xl font-semibold hover:bg-gray-600 cursor-pointer text-sm">
+                ↺ Reset
+            </button>
+            <button id="record-btn" onclick="startRecording()" 
+                    class="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-500 rounded-xl font-semibold 
+                           hover:from-purple-500 hover:to-pink-400 cursor-pointer text-sm">
+                🎥 Record
+            </button>
+            <button id="stop-record-btn" onclick="stopRecording()" disabled
+                    class="px-6 py-2 bg-gray-600 rounded-xl font-semibold cursor-not-allowed opacity-50 text-sm">
+                ⏹ Stop
+            </button>
+        </div>
+        
+        <!-- Parameter Controls -->
+        <div class="glass-card rounded-xl p-3 mt-3">
+            <div class="grid grid-cols-3 gap-4">
+                <div>
+                    <label class="text-xs text-gray-400">Fill Probability</label>
+                    <input type="range" id="fill-slider" min="30" max="60" value="45" 
+                           class="w-full accent-yellow-500" oninput="updateParams()">
+                </div>
+                <div>
+                    <label class="text-xs text-gray-400">Birth Limit (1-8)</label>
+                    <input type="range" id="birth-slider" min="1" max="8" value="4" 
+                           class="w-full accent-green-500" oninput="updateParams()">
+                </div>
+                <div>
+                    <label class="text-xs text-gray-400">Death Limit (1-8)</label>
+                    <input type="range" id="death-slider" min="1" max="8" value="3" 
+                           class="w-full accent-red-500" oninput="updateParams()">
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // ============ CELLULAR AUTOMATA ============
+        const WIDTH = 32;
+        const HEIGHT = 32;
+        const CELL_SIZE = 8;  // 256 / 32
+        const MAX_ITERATIONS = 8;
+        const BORDER_THICKNESS = 2;
+        
+        // Colors matching the user's image (no yellow grid lines)
+        const COLORS = {
+            empty: '#4a4a4a',   // Gray - walkable
+            solid: '#8B4513',   // Brown - wall
+            border: '#1a1a2e'   // Dark - border
+        };
+        
+        const initCanvas = document.getElementById('init-canvas');
+        const caCanvas = document.getElementById('ca-canvas');
+        const initCtx = initCanvas.getContext('2d');
+        const caCtx = caCanvas.getContext('2d');
+        
+        let gridA = [];  // Current buffer
+        let gridB = [];  // Next buffer
+        let initialGrid = [];  // Store initial state
+        let iteration = 0;
+        let isRunning = false;
+        let animationId = null;
+        
+        // Parameters
+        let fillProbability = 0.45;
+        let birthLimit = 4;
+        let deathLimit = 3;
+        
+        // Recording
+        let isRecording = false;
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let recordingCanvas = null;
+        let recordingCtx = null;
+        
+        function initGrid() {
+            gridA = [];
+            gridB = [];
+            
+            for (let y = 0; y < HEIGHT; y++) {
+                const rowA = [];
+                const rowB = [];
+                for (let x = 0; x < WIDTH; x++) {
+                    // Border is always solid
+                    if (x < BORDER_THICKNESS || x >= WIDTH - BORDER_THICKNESS ||
+                        y < BORDER_THICKNESS || y >= HEIGHT - BORDER_THICKNESS) {
+                        rowA.push(1);
+                    } else {
+                        rowA.push(Math.random() < fillProbability ? 1 : 0);
+                    }
+                    rowB.push(0);
+                }
+                gridA.push(rowA);
+                gridB.push(rowB);
+            }
+            
+            // Store initial state
+            initialGrid = gridA.map(row => [...row]);
+            iteration = 0;
+        }
+        
+        function countNeighbors(grid, x, y) {
+            let count = 0;
+            for (let dy = -1; dy <= 1; dy++) {
+                for (let dx = -1; dx <= 1; dx++) {
+                    if (dx === 0 && dy === 0) continue;
+                    const nx = x + dx;
+                    const ny = y + dy;
+                    
+                    // Out of bounds counts as solid
+                    if (nx < 0 || nx >= WIDTH || ny < 0 || ny >= HEIGHT) {
+                        count++;
+                    } else {
+                        count += grid[ny][nx];
+                    }
+                }
+            }
+            return count;
+        }
+        
+        function applyCAStep() {
+            for (let y = 0; y < HEIGHT; y++) {
+                for (let x = 0; x < WIDTH; x++) {
+                    // Border stays solid
+                    if (x < BORDER_THICKNESS || x >= WIDTH - BORDER_THICKNESS ||
+                        y < BORDER_THICKNESS || y >= HEIGHT - BORDER_THICKNESS) {
+                        gridB[y][x] = 1;
+                        continue;
+                    }
+                    
+                    const neighbors = countNeighbors(gridA, x, y);
+                    const current = gridA[y][x];
+                    
+                    if (current === 1) {
+                        // Solid dies if neighbors < deathLimit
+                        gridB[y][x] = neighbors < deathLimit ? 0 : 1;
+                    } else {
+                        // Empty becomes solid if neighbors >= birthLimit
+                        gridB[y][x] = neighbors >= birthLimit ? 1 : 0;
+                    }
+                }
+            }
+            
+            // Swap buffers
+            [gridA, gridB] = [gridB, gridA];
+            iteration++;
+        }
+        
+        function renderGrid(ctx, grid) {
+            for (let y = 0; y < HEIGHT; y++) {
+                for (let x = 0; x < WIDTH; x++) {
+                    const value = grid[y][x];
+                    ctx.fillStyle = value === 1 ? COLORS.solid : COLORS.empty;
+                    ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                }
+            }
+        }
+        
+        function updateDisplay() {
+            document.getElementById('iteration-text').textContent = `${iteration} / ${MAX_ITERATIONS}`;
+            document.getElementById('progress-bar').style.width = (iteration / MAX_ITERATIONS * 100) + '%';
+        }
+        
+        function stepOnce() {
+            if (iteration >= MAX_ITERATIONS) return;
+            
+            applyCAStep();
+            renderGrid(caCtx, gridA);
+            updateDisplay();
+            
+            if (isRecording) captureFrame();
+        }
+        
+        function animate() {
+            if (!isRunning || iteration >= MAX_ITERATIONS) {
+                isRunning = false;
+                document.getElementById('start-btn').textContent = '▶ Run CA';
+                if (isRecording && iteration >= MAX_ITERATIONS) {
+                    setTimeout(stopRecording, 1000);
+                }
+                return;
+            }
+            
+            stepOnce();
+            animationId = setTimeout(animate, 1250);  // ~10 sec total (8 iterations × 1250ms)
+        }
+        
+        function startCA() {
+            if (isRunning) {
+                isRunning = false;
+                document.getElementById('start-btn').textContent = '▶ Run CA';
+                return;
+            }
+            
+            if (iteration >= MAX_ITERATIONS) {
+                resetCA();
+            }
+            
+            isRunning = true;
+            document.getElementById('start-btn').textContent = '⏸ Pause';
+            animate();
+        }
+        
+        function resetCA() {
+            isRunning = false;
+            clearTimeout(animationId);
+            document.getElementById('start-btn').textContent = '▶ Run CA';
+            
+            initGrid();
+            renderGrid(initCtx, initialGrid);
+            renderGrid(caCtx, gridA);
+            updateDisplay();
+        }
+        
+        function updateParams() {
+            fillProbability = parseInt(document.getElementById('fill-slider').value) / 100;
+            birthLimit = parseInt(document.getElementById('birth-slider').value);
+            deathLimit = parseInt(document.getElementById('death-slider').value);
+            
+            document.getElementById('fill-display').textContent = Math.round(fillProbability * 100) + '%';
+            document.getElementById('birth-display').textContent = birthLimit;
+            document.getElementById('death-display').textContent = deathLimit;
+        }
+        
+        // ============ HD HIGH-QUALITY RECORDING ============
+        const HD_SCALE = 2;  // 2x resolution for HD
+        const TARGET_FPS = 60;
+        const BITRATE = 8000000;  // 8 Mbps for high quality
+        
+        async function captureFrame() {
+            try {
+                const container = document.getElementById('record-container');
+                const frameCanvas = await html2canvas(container, {
+                    backgroundColor: '#0f0f23',
+                    scale: HD_SCALE,
+                    useCORS: true,
+                    logging: false
+                });
+                if (recordingCtx) {
+                    recordingCtx.drawImage(frameCanvas, 0, 0, recordingCanvas.width, recordingCanvas.height);
+                }
+            } catch (e) { console.error(e); }
+        }
+        
+        function getMimeType() {
+            // Try MP4 first (H.264), fallback to WebM
+            const types = [
+                'video/mp4;codecs=avc1.42E01E',
+                'video/mp4',
+                'video/webm;codecs=h264',
+                'video/webm;codecs=vp9',
+                'video/webm'
+            ];
+            for (const type of types) {
+                if (MediaRecorder.isTypeSupported(type)) {
+                    console.log('Using codec:', type);
+                    return type;
+                }
+            }
+            return 'video/webm';
+        }
+        
+        async function startRecording() {
+            resetCA();
+            
+            const container = document.getElementById('record-container');
+            const rect = container.getBoundingClientRect();
+            
+            // HD resolution canvas
+            recordingCanvas = document.createElement('canvas');
+            recordingCanvas.width = Math.floor(rect.width * HD_SCALE);
+            recordingCanvas.height = Math.floor(rect.height * HD_SCALE);
+            recordingCtx = recordingCanvas.getContext('2d');
+            
+            recordedChunks = [];
+            const stream = recordingCanvas.captureStream(TARGET_FPS);
+            const mimeType = getMimeType();
+            
+            mediaRecorder = new MediaRecorder(stream, {
+                mimeType: mimeType,
+                videoBitsPerSecond: BITRATE
+            });
+            
+            mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+            mediaRecorder.onstop = () => {
+                const isMP4 = mimeType.includes('mp4');
+                const blob = new Blob(recordedChunks, { type: mimeType });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = isMP4 ? 'cellular_automata_HD.mp4' : 'cellular_automata_HD.webm';
+                a.click();
+                
+                document.getElementById('recording-status').classList.add('hidden');
+                document.getElementById('record-btn').disabled = false;
+                document.getElementById('record-btn').classList.remove('opacity-50', 'cursor-not-allowed');
+                document.getElementById('stop-record-btn').disabled = true;
+                document.getElementById('stop-record-btn').classList.add('opacity-50', 'cursor-not-allowed');
+                isRecording = false;
+            };
+            
+            mediaRecorder.start(50);  // More frequent chunks for smoother video
+            isRecording = true;
+            
+            document.getElementById('recording-status').classList.remove('hidden');
+            document.getElementById('record-btn').disabled = true;
+            document.getElementById('record-btn').classList.add('opacity-50', 'cursor-not-allowed');
+            document.getElementById('stop-record-btn').disabled = false;
+            document.getElementById('stop-record-btn').classList.remove('opacity-50', 'cursor-not-allowed');
+            
+            await captureFrame();
+            setTimeout(startCA, 500);
+        }
+        
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+            isRunning = false;
+        }
+        
+        // Initialize
+        resetCA();
+    </script>
+</body>
+</html>
