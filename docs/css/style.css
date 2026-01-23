@@ -1,0 +1,399 @@
+/* 
+ * 核心样式表 (Core Stylesheet)
+ * 主题: Fintech / Crypto / Flutter Material
+ * 设计系统参考: docs/DESIGN_SYSTEM.md
+ */
+
+:root {
+  /* 1. 配色方案 (Color Palette) */
+
+  /* 背景色 (Backgrounds) */
+  --bg-base: #0f172a; /* Slate 900 - 主背景 */
+  --bg-surface: #1e293b; /* Slate 800 - 卡片背景 */
+  --bg-glass: rgba(255, 255, 255, 0.03); /* 玻璃效果 */
+  --bg-glass-hover: rgba(255, 255, 255, 0.08);
+
+  /* 品牌色 (Brand Colors) */
+  --col-primary: #38bdf8; /* Sky 400 - Crypto Blue */
+  --col-primary-dark: #0ea5e9;
+  --col-secondary: #34d399; /* Emerald 400 - Growth Green */
+  --col-accent: #fb7185; /* Rose 400 - Alert Pink */
+
+  /* 渐变 (Gradients) */
+  --grad-primary: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+  --grad-glow: radial-gradient(
+    circle at 50% 50%,
+    rgba(56, 189, 248, 0.15) 0%,
+    transparent 70%
+  );
+
+  /* 文本色 (Text) */
+  --txt-heading: #f8fafc; /* Slate 50 */
+  --txt-body: #94a3b8; /* Slate 400 */
+  --txt-muted: #475569; /* Slate 600 */
+  --txt-on-primary: #ffffff;
+
+  /* 边框 (Borders) */
+  --border-glass: rgba(255, 255, 255, 0.08);
+  --border-highlight: rgba(56, 189, 248, 0.3);
+
+  /* 尺寸与间距 (Dimensions & Spacing) */
+  --nav-top-height: 64px;
+  --nav-side-width: 260px;
+  --radius-md: 0.75rem; /* 12px */
+  --radius-lg: 1rem; /* 16px */
+
+  /* 动画 (Animations) */
+  --trans-fast: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --trans-smooth: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 2. 全局重置 (Global Reset) */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family:
+    "Inter",
+    system-ui,
+    -apple-system,
+    sans-serif;
+  background-color: var(--bg-base);
+  color: var(--txt-body);
+  line-height: 1.6;
+  overflow-x: hidden;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 滚动条美化 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--bg-surface);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--txt-muted);
+}
+
+/* 类型排版 (Typography) */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: var(--txt-heading);
+  font-weight: 600;
+  line-height: 1.25;
+  margin-bottom: 1rem;
+}
+
+h1 {
+  font-size: 2.25rem;
+  letter-spacing: -0.025em;
+}
+h2 {
+  font-size: 1.875rem;
+}
+h3 {
+  font-size: 1.5rem;
+}
+
+a {
+  color: var(--col-primary);
+  text-decoration: none;
+  transition: var(--trans-fast);
+}
+a:hover {
+  color: var(--col-primary-dark);
+}
+
+/* 3. 布局组件 (Layout Components) */
+
+/* 背景光效 */
+.bg-glow-orb {
+  position: fixed;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(56, 189, 248, 0.1) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+  z-index: -1;
+  filter: blur(80px);
+}
+.orb-1 {
+  top: -20%;
+  left: -10%;
+}
+.orb-2 {
+  bottom: -20%;
+  right: -10%;
+  background: radial-gradient(
+    circle,
+    rgba(129, 140, 248, 0.1) 0%,
+    transparent 70%
+  );
+}
+
+/* 顶栏 (Top Bar) */
+.navbar-top {
+  height: var(--nav-top-height);
+  width: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 50;
+
+  /* Glassmorphism */
+  background: rgba(15, 23, 42, 0.7); /* Base with opacity */
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-glass);
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.5rem;
+}
+
+.brand-section {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.brand-logo {
+  width: 32px;
+  height: 32px;
+  background: var(--grad-primary);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: bold;
+  font-family: monospace;
+}
+
+.brand-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--txt-heading);
+  letter-spacing: -0.5px;
+}
+
+/* 侧边栏 (Sidebar) */
+.sidebar {
+  width: var(--nav-side-width);
+  position: fixed;
+  top: var(--nav-top-height);
+  left: 0;
+  bottom: 0;
+  z-index: 40;
+
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(8px);
+  border-right: 1px solid var(--border-glass);
+  padding: 1.5rem 1rem;
+
+  transform: translateX(0);
+  transition: transform var(--trans-smooth);
+  overflow-y: auto;
+}
+
+.sidebar-group {
+  margin-bottom: 2rem;
+}
+
+.sidebar-title {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: var(--txt-muted);
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+  padding-left: 0.75rem;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: var(--radius-md);
+  color: var(--txt-body);
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--trans-fast);
+}
+
+.nav-item:hover {
+  background: var(--bg-glass-hover);
+  color: var(--txt-heading);
+}
+
+.nav-item.active {
+  background: rgba(56, 189, 248, 0.1);
+  color: var(--col-primary);
+  border-left: 3px solid var(--col-primary);
+}
+
+/* 主内容区域 (Main Content) */
+.main-wrapper {
+  margin-top: var(--nav-top-height);
+  margin-left: var(--nav-side-width);
+  min-height: calc(100vh - var(--nav-top-height));
+  padding: 2rem;
+  position: relative;
+  transition: margin-left var(--trans-smooth);
+}
+
+/* 视图容器 (View Containers) */
+.view-container {
+  display: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.view-container.active {
+  display: block;
+  opacity: 1;
+  animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 4. 组件 (Components) */
+
+/* 卡片 */
+.glass-card {
+  background: var(--bg-surface); /* Fallback */
+  background: linear-gradient(
+    180deg,
+    rgba(30, 41, 59, 0.7) 0%,
+    rgba(30, 41, 59, 0.4) 100%
+  );
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+/* 按钮 */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--trans-fast);
+  border: none;
+  outline: none;
+}
+
+.btn-primary {
+  background: var(--grad-primary);
+  color: var(--txt-on-primary);
+  box-shadow: 0 0 15px rgba(56, 189, 248, 0.25);
+}
+
+.btn-primary:hover {
+  box-shadow: 0 0 25px rgba(56, 189, 248, 0.4);
+  transform: translateY(-1px);
+}
+
+/* 标签 (Tags/Badges) */
+.tag {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.tag-fintech {
+  background: rgba(52, 211, 153, 0.1);
+  color: var(--col-secondary);
+  border: 1px solid rgba(52, 211, 153, 0.2);
+}
+
+/* Markdown 内容样式覆盖 (Markdown Overrides) */
+.markdown-body {
+  max-width: 800px;
+  margin: 0 auto;
+  color: var(--txt-body);
+}
+.markdown-body h1,
+.markdown-body h2 {
+  border-bottom: 1px solid var(--border-glass);
+  padding-bottom: 0.5rem;
+}
+.markdown-body code {
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--col-primary);
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-family: "JetBrains Mono", monospace;
+}
+.markdown-body pre {
+  background: #0b1120;
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  overflow-x: auto;
+}
+
+/* 5. 分屏布局 (Split View Reference) */
+.split-layout {
+  display: grid;
+  grid-template-columns: 1fr 400px; /* 左侧可视化，右侧文档 */
+  gap: 1.5rem;
+  height: calc(100vh - var(--nav-top-height) - 4rem); /* 减去padding */
+}
+
+.visualizer-frame-container {
+  width: 100%;
+  height: 100%;
+  background: #000;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  position: relative;
+  border: 1px solid var(--border-glass);
+}
+
+.visualizer-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.doc-panel {
+  overflow-y: auto;
+  background: rgba(15, 23, 42, 0.6);
+  border-left: 1px solid var(--border-glass);
+}

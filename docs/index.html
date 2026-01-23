@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Crypta Geometrica - Visualization Portal</title>
+
+    <!-- 字体 (Inter, JetBrains Mono) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- 第三方库: Icons (Lucide), Markdown (Marked) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <!-- 核心样式 -->
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <!-- 背景光效 -->
+    <div class="bg-glow-orb orb-1"></div>
+    <div class="bg-glow-orb orb-2"></div>
+
+    <!-- 1. 顶部导航栏 (Top Navbar) -->
+    <nav class="navbar-top">
+      <div class="brand-section">
+        <div class="brand-logo">CG</div>
+        <div class="brand-title">
+          Crypta Geometrica
+          <span style="font-weight: 400; opacity: 0.6; font-size: 0.9em"
+            >Portal</span
+          >
+        </div>
+      </div>
+
+      <div class="nav-actions">
+        <!-- 语言切换 (暂留) -->
+        <button
+          class="btn btn-primary"
+          style="font-size: 0.9rem; padding: 0.4rem 0.8rem"
+        >
+          <i data-lucide="github" style="width: 16px; margin-right: 6px"></i>
+          Repository
+        </button>
+      </div>
+    </nav>
+
+    <!-- 2. 左侧侧边栏 (Sidebar) -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-group">
+        <div class="sidebar-title">概览 (Overview)</div>
+
+        <div class="nav-item active" data-target="welcome">
+          <i data-lucide="layout-dashboard" style="width: 20px"></i>
+          <span>项目介绍</span>
+        </div>
+      </div>
+
+      <div class="sidebar-group">
+        <div class="sidebar-title">可视化算法 (Algorithms)</div>
+
+        <!-- 动态填充列表 -->
+        <div class="nav-item" data-target="visualizer" data-algo="random_walk">
+          <i data-lucide="footprints" style="width: 20px"></i>
+          <span>随机游走 (Random Walk)</span>
+        </div>
+
+        <div class="nav-item" data-target="visualizer" data-algo="air_column">
+          <i data-lucide="wind" style="width: 20px"></i>
+          <span>空气柱采样 (Air Column)</span>
+        </div>
+
+        <div class="nav-item" data-target="visualizer" data-algo="cellular">
+          <i data-lucide="grid-3x3" style="width: 20px"></i>
+          <span>细胞自动机 (Cellular)</span>
+        </div>
+
+        <div class="nav-item" data-target="visualizer" data-algo="sparse">
+          <i data-lucide="scatter-chart" style="width: 20px"></i>
+          <span>稀疏放置 (Sparse)</span>
+        </div>
+      </div>
+
+      <div class="sidebar-group">
+        <div class="sidebar-title">文档 (Docs)</div>
+        <div
+          class="nav-item"
+          onclick="window.open('../RoomGenerator_TechnicalPaper.md', '_blank')"
+        >
+          <i data-lucide="file-text" style="width: 20px"></i>
+          <span>房间生成技术白皮书</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 3. 主内容区域 (Main Wrapper) -->
+    <main class="main-wrapper">
+      <!-- 视图 A: 欢迎页 (Welcome View) -->
+      <div id="view-welcome" class="view-container active">
+        <div class="glass-card">
+          <!-- 动态渲染的 Markdown 内容容器 -->
+          <div id="readme-content" class="markdown-body">
+            <h1>Loading Documentation...</h1>
+          </div>
+        </div>
+      </div>
+
+      <!-- 视图 B: 可视化器 (Visualizer View) -->
+      <div id="view-visualizer" class="view-container">
+        <div class="split-layout">
+          <!-- 左: Iframe -->
+          <div class="visualizer-frame-container">
+            <iframe id="viz-frame" class="visualizer-frame" src=""></iframe>
+          </div>
+
+          <!-- 右: 算法说明 -->
+          <div class="glass-card doc-panel">
+            <div
+              id="algo-doc-content"
+              class="markdown-body"
+              style="font-size: 0.9rem"
+            >
+              <h3>算法说明</h3>
+              <p>请选择左侧算法以查看演示和文档。</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- 逻辑脚本 -->
+    <script src="js/main.js"></script>
+    <script>
+      // 初始化 Lucide 图标
+      lucide.createIcons();
+    </script>
+  </body>
+</html>
