@@ -1,4 +1,8 @@
-# CRYPTA GEOMETRICA | 几何地窖
+# CRYPTA GEOMETRICA | Geometric Crypt
+
+<p align="center">
+  <strong>English</strong> | <a href="README_Main_ZH.md">简体中文</a> | <a href="README_Main_SV.md">Svenska</a> | <a href="README_Main_FI.md">Suomi</a> | <a href="README_Main_DA.md">Dansk</a>
+</p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Unity-2022.3%20LTS-blue?logo=unity" alt="Unity Version">
@@ -8,120 +12,120 @@
 </p>
 
 <p align="center">
-  <b>一款由单人独立开发的横板动作类 Roguelite 游戏</b>
+  <b>A side-scrolling action Roguelite game developed by a solo indie developer</b>
 </p>
 
 ---
 
-## 📖 目录
+## 📖 Table of Contents
 
-- [游戏简介](#-游戏简介)
-- [灵感来源](#-灵感来源)
-- [游戏玩法](#-游戏玩法)
-- [技术架构](#-技术架构)
-- [技术栈](#-技术栈)
-- [项目结构](#-项目结构)
-- [许可证](#-许可证)
-
----
-
-## 🎮 游戏简介
-
-《**CRYPTA GEOMETRICA**》是一款极具辨识度的横板动作类 Roguelite 游戏。游戏采用**矢量几何线框美术风格**，搭配冷峻科幻的视觉基调，构建出一个充满未知与危险的几何地下城世界。
-
-### 核心特性
-
-| 特性 | 描述 |
-|------|------|
-| 🎲 **随机生成** | 每次冒险的地牢结构都是程序化生成的，保证新鲜感 |
-| ⚔️ **精准战斗** | 参考《空洞骑士》的战斗系统，强调读招预判与风险回报 |
-| 🔄 **Roguelite 循环** | 局内重置 + 局外永久解锁的双轨机制 |
-| 🎨 **几何美学** | 矢量线框 + 科幻光影，极简而富有辨识度 |
-
-### 故事背景
-
-在几何矩阵世界中，矩形、三角形、圆形三大几何生命体族群各自建立国度。三角形君王的野心打破了平衡，他企图融合其他几何生命体的核心力量，却导致实验失控。你作为**矩形勇者**，肩负着消灭失控的复合怪物、夺回核心几何件、重建世界秩序的使命。
+- [Game Overview](#-game-overview)
+- [Inspirations](#-inspirations)
+- [Gameplay](#-gameplay)
+- [Technical Architecture](#-technical-architecture)
+- [Tech Stack](#-tech-stack)
+- [Project Structure](#-project-structure)
+- [License](#-license)
 
 ---
 
-## 💡 灵感来源
+## 🎮 Game Overview
 
-### 1. 美术风格：《几何冲刺》(Geometry Dash)
+**CRYPTA GEOMETRICA** is a highly distinctive side-scrolling action Roguelite game. The game features a **vector geometric wireframe art style**, paired with a cold, sci-fi visual tone, constructing a geometric dungeon world full of unknowns and dangers.
 
-借鉴极简纯粹的几何体构成逻辑。角色与怪物均以 1-3 个基础几何体为核心搭建，Boss 则通过多个几何体的组合拼接呈现复杂的视觉形象。融入科幻线框光影效果，搭配高对比度的霓虹色彩与冷峻暗色调背景。
+### Core Features
 
-### 2. 关卡设计：《死亡细胞》× 《洞穴冒险》
+| Feature | Description |
+|---------|-------------|
+| 🎲 **Procedural Generation** | Every dungeon structure is procedurally generated, ensuring fresh experiences |
+| ⚔️ **Precision Combat** | Combat system inspired by *Hollow Knight*, emphasizing reading attacks and risk-reward |
+| 🔄 **Roguelite Loop** | In-run reset + permanent unlocks between runs dual-track mechanism |
+| 🎨 **Geometric Aesthetics** | Vector wireframes + sci-fi lighting, minimalist yet highly recognizable |
 
-核心继承《死亡细胞》"局内随机生成 + 局外永久解锁"的双轨循环机制。关卡生成采用**随机游走算法规划主路径**的宏观框架，嵌套《洞穴冒险》式的房间种子库设计，实现"低成本高多样性"的关卡体验。
+### Story Background
 
-### 3. 操作与战斗：《空洞骑士》
-
-参考经典横板战斗动作系统，构建"接近 → 输出 → 撤离/防御 → 追击"的简洁战斗循环。战斗核心强调**风险-回报**与**读招预判**，鼓励玩家在谨慎判断与果断操作之间寻找平衡。
+In the Geometric Matrix World, three geometric lifeform factions—rectangles, triangles, and circles—each established their own kingdoms. The Triangle King's ambition disrupted the balance when he attempted to merge core powers from other geometric lifeforms, causing the experiment to spiral out of control. As the **Rectangle Hero**, you bear the mission to eliminate the rogue composite monsters, reclaim the core geometric pieces, and restore world order.
 
 ---
 
-## 🕹️ 游戏玩法
+## 💡 Inspirations
 
-### 核心循环
+### 1. Art Style: *Geometry Dash*
+
+Drawing inspiration from its minimalist and pure geometric composition logic. Characters and enemies are built around 1-3 basic geometric shapes, while Bosses present complex visual forms through the combination of multiple geometric bodies. Incorporating sci-fi wireframe lighting effects, paired with high-contrast neon colors and cold, dark backgrounds.
+
+### 2. Level Design: *Dead Cells* × *Spelunky*
+
+Core mechanics inherit *Dead Cells'* "in-run procedural generation + permanent meta-progression" dual-track loop. Level generation uses **random walk algorithm for main path planning** as the macro framework, nested with *Spelunky*-style room seed library design, achieving "low-cost, high-variety" level experiences.
+
+### 3. Controls & Combat: *Hollow Knight*
+
+Referencing the classic side-scrolling combat action system, building a concise combat loop of "approach → attack → retreat/defend → chase". Combat core emphasizes **risk-reward** and **reading attacks**, encouraging players to find balance between cautious judgment and decisive action.
+
+---
+
+## 🕹️ Gameplay
+
+### Core Loop
 
 ```mermaid
 flowchart TD
-    S([开始新的冒险]) --> E[进入地牢探索]
-    E -->|遇到敌人| B[战斗]
-    E -->|发现商店| Shop[商店购买]
-    B -->|胜利| Gold[获得金币]
-    B -->|死亡| Fail[冒险失败]
-    Gold --> Boss[到达Boss房间]
+    S([Start New Adventure]) --> E[Enter Dungeon Exploration]
+    E -->|Encounter Enemy| B[Combat]
+    E -->|Find Shop| Shop[Shop Purchase]
+    B -->|Victory| Gold[Obtain Gold]
+    B -->|Death| Fail[Adventure Failed]
+    Gold --> Boss[Reach Boss Room]
     Shop --> E
-    Boss -->|击败| Core[获得几何核心]
-    Boss -->|失败| Fail
-    Core --> Return[返回地面归还核心]
-    Return --> Unlock[永久记录进度/解锁新内容]
+    Boss -->|Defeat| Core[Obtain Geometric Core]
+    Boss -->|Failure| Fail
+    Core --> Return[Return to Surface to Deliver Core]
+    Return --> Unlock[Permanent Progress Record/Unlock New Content]
 ```
 
-### 战斗系统
+### Combat System
 
-采用四阶段战斗循环：
+Employs a four-phase combat loop:
 
-1. **接近** - 观察敌人站位与攻击前摇，灵活使用跳跃接近目标
-2. **输出** - 在敌人攻击间隙进行近距离输出（1.5x 伤害加成）
-3. **撤离/防御** - 通过跳跃或二段跳规避伤害
-4. **追击** - 利用敌人硬直继续输出或重新调整位置
+1. **Approach** - Observe enemy positioning and attack wind-up, flexibly use jumps to close distance
+2. **Attack** - Deal damage during enemy attack gaps (1.5x damage bonus at close range)
+3. **Retreat/Defend** - Evade damage through jumps or double jumps
+4. **Chase** - Continue attacking during enemy stagger or reposition
 
-### 房间类型
+### Room Types
 
-| 房间类型 | 功能 | 敌人配置 |
-|----------|------|----------|
-| 🗡️ **战斗房** | 基础战斗与资源获取 | 2-4 个敌人 |
-| ⚔️ **精英房** | 中短时高压挑战 | 精英组合 |
-| 🏕️ **休息房** | 恢复与节奏缓冲 | 无敌人 |
-| 👑 **Boss 房** | 两阶段 Boss 战 | Boss |
+| Room Type | Function | Enemy Configuration |
+|-----------|----------|---------------------|
+| 🗡️ **Combat Room** | Basic combat and resource acquisition | 2-4 enemies |
+| ⚔️ **Elite Room** | High-pressure short encounters | Elite combinations |
+| 🏕️ **Rest Room** | Recovery and pacing buffer | No enemies |
+| 👑 **Boss Room** | Two-phase Boss battle | Boss |
 
 ---
 
-## 🔧 技术架构
+## 🔧 Technical Architecture
 
-### 🎲 程序化关卡生成系统 (PCG V4)
+### 🎲 Procedural Level Generation System (PCG V4)
 
-采用**嵌套式程序化生成 (Nested PCG)** 和**异步管线 (Async Pipeline)** 设计。
+Utilizes **Nested Procedural Generation (Nested PCG)** and **Async Pipeline** design.
 
-| 层级 | 描述 |
-|------|------|
-| **宏观层 (World)** | 计算房间坐标，处理拓扑关系 |
-| **微观层 (Room)** | 生成地形细节，处理几何像素 |
+| Layer | Description |
+|-------|-------------|
+| **Macro Layer (World)** | Calculates room coordinates, handles topological relationships |
+| **Micro Layer (Room)** | Generates terrain details, processes geometric pixels |
 
-#### 核心算法
+#### Core Algorithms
 
-| 算法 | 用途 |
-|------|------|
-| 稀疏随机放置 | 世界布局生成 |
-| 约束醉汉游走 | 房间内部布局 |
-| 细胞自动机 | 地形平滑化 |
-| 空气柱采样 | 平台智能放置 |
+| Algorithm | Purpose |
+|-----------|---------|
+| Sparse Random Placement | World layout generation |
+| Constrained Drunk Walk | Room interior layout |
+| Cellular Automata | Terrain smoothing |
+| Air Column Sampling | Intelligent platform placement |
 
-### 🎛️ 游戏管理器架构
+### 🎛️ Game Manager Architecture
 
-采用**容器化服务架构**，避免大量单例导致的初始化顺序混乱。
+Employs **Containerized Service Architecture** to avoid initialization order chaos caused by numerous singletons.
 
 ```
 [GameManager] (DontDestroyOnLoad)
@@ -130,63 +134,63 @@ flowchart TD
   └── [FutureSystem...]
 ```
 
-- 所有模块遵循 `IGameModule` 接口
-- 统一生命周期管理：Init → Update → Dispose
-- 开发阶段任何场景自动初始化
+- All modules follow the `IGameModule` interface
+- Unified lifecycle management: Init → Update → Dispose
+- Auto-initialization from any scene during development
 
-### 📡 全局消息系统
+### 📡 Global Message System
 
-基于**发布-订阅模式（Pub/Sub）**的低耦合通信系统。
+Low-coupling communication system based on **Publish-Subscribe Pattern (Pub/Sub)**.
 
-| 特性 | 描述 |
-|------|------|
-| 泛型支持 | 支持 0-3 个参数的消息传递 |
-| 类型安全 | 编译期检查参数类型 |
-| 自动清理 | 场景切换时自动清理非永久事件 |
-| Event Monitor | 编辑器窗口实时监控消息流 |
-
----
-
-## 🛠️ 技术栈
-
-| 类别 | 技术 | 用途 |
-|------|------|------|
-| **引擎** | Unity 2022.3 LTS | 游戏引擎 |
-| **异步编程** | [UniTask](https://github.com/Cysharp/UniTask) | 替代协程的异步框架 |
-| **编辑器扩展** | [Odin Inspector](https://odininspector.com/) | Inspector UI 增强 |
-| **动画系统** | DOTween Pro | 代码驱动动画 |
-| **版本控制** | Git + GitHub | 源码管理 |
+| Feature | Description |
+|---------|-------------|
+| Generic Support | Supports message passing with 0-3 parameters |
+| Type Safety | Compile-time parameter type checking |
+| Auto Cleanup | Automatically clears non-permanent events on scene transitions |
+| Event Monitor | Editor window for real-time message flow monitoring |
 
 ---
 
-## 📁 项目结构
+## 🛠️ Tech Stack
+
+| Category | Technology | Purpose |
+|----------|------------|---------|
+| **Engine** | Unity 2022.3 LTS | Game Engine |
+| **Async Programming** | [UniTask](https://github.com/Cysharp/UniTask) | Async framework replacing coroutines |
+| **Editor Extensions** | [Odin Inspector](https://odininspector.com/) | Inspector UI enhancement |
+| **Animation System** | DOTween Pro | Code-driven animations |
+| **Version Control** | Git + GitHub | Source code management |
+
+---
+
+## 📁 Project Structure
 
 ```
 Assets/
-├── 0_Documents/              # 设计文档
-│   └── 0_Planning/           # 策划文档与参考图
-├── 1_Scripts/                # 脚本代码
-│   ├── 0_GameManager/        # 游戏管理器模块
-│   ├── 0_MessageSystem/      # 消息系统
-│   ├── 1_Player/             # 玩家控制
-│   ├── 2_Enemy/              # 敌人 AI
-│   └── 3_LevelGeneration/    # 关卡生成系统
-│       ├── LevelGenerationV3/  # V3 版本
-│       └── LevelGenerationV4/  # V4 版本（当前）
-├── 2_Prefabs/                # 预制体
-├── 3_Scenes/                 # 场景文件
-└── 4_Art/                    # 美术资源
+├── 0_Documents/              # Design documents
+│   └── 0_Planning/           # Planning docs and reference images
+├── 1_Scripts/                # Script code
+│   ├── 0_GameManager/        # Game manager module
+│   ├── 0_MessageSystem/      # Message system
+│   ├── 1_Player/             # Player controls
+│   ├── 2_Enemy/              # Enemy AI
+│   └── 3_LevelGeneration/    # Level generation system
+│       ├── LevelGenerationV3/  # V3 version
+│       └── LevelGenerationV4/  # V4 version (current)
+├── 2_Prefabs/                # Prefabs
+├── 3_Scenes/                 # Scene files
+└── 4_Art/                    # Art resources
 ```
 
 ---
 
-## 📄 许可证
+## 📄 License
 
-本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件。
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
 <p align="center">
-  <b>CRYPTA GEOMETRICA</b> - 探索几何地窖的深处<br>
-  <b>由一位努力学习的独立开发大学生自己完成</b>
+  <b>CRYPTA GEOMETRICA</b> - Explore the Depths of the Geometric Crypt<br>
+  <b>Created by a dedicated indie solo-dev university student</b>
 </p>
